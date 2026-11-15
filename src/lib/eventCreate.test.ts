@@ -51,6 +51,33 @@ describe('buildNewEvent', () => {
     expect(buildNewEvent({ name: 'X', date: '', headcount: -3 }, 'x-a1b2c').headcount).toBe(0)
     expect(buildNewEvent({ name: 'X', date: '', headcount: Number.NaN }, 'x-a1b2c').headcount).toBe(0)
   })
+
+  it('carries trimmed location and details from the form', () => {
+    const ev = buildNewEvent(
+      { name: 'X', date: '', headcount: 0, location: '  1 Test Way  ', details: '  Park on the street.  ' },
+      'x-a1b2c',
+    )
+    expect(ev.location).toBe('1 Test Way')
+    expect(ev.details).toBe('Park on the street.')
+  })
+
+  it('leaves blank location and details absent', () => {
+    const ev = buildNewEvent({ name: 'X', date: '', headcount: 0, location: '   ', details: '' }, 'x-a1b2c')
+    expect(ev.location).toBeUndefined()
+    expect(ev.details).toBeUndefined()
+    const bare = buildNewEvent({ name: 'X', date: '', headcount: 0 }, 'x-a1b2c')
+    expect(bare.location).toBeUndefined()
+    expect(bare.details).toBeUndefined()
+  })
+
+  it('caps location at 200 chars and details at 2000', () => {
+    const ev = buildNewEvent(
+      { name: 'X', date: '', headcount: 0, location: 'a'.repeat(250), details: 'b'.repeat(2500) },
+      'x-a1b2c',
+    )
+    expect(ev.location).toHaveLength(200)
+    expect(ev.details).toHaveLength(2000)
+  })
 })
 
 describe('eventLinks', () => {
@@ -85,6 +112,30 @@ describe('createUniqueEvent', () => {
     expect(created[0].hash).toBe(await sha256Hex(adminToken))
     expect(created[0].hash).not.toBe(adminToken)
     expect(eventAdminToken(event.id)).toBe(adminToken)
+  })
+
+  it('persists location and details given at creation', async () => {
+    const { store, created } = fakeStore()
+    const { event } = await createUniqueEvent(store, {
+      name: 'Taco Night',
+      date: '',
+      headcount: 0,
+      location: '1 Test Way',
+      details: 'Park on the street.',
+    })
+    expect(created).toHaveLength(1)
+    expect(created[0].event.location).toBe('1 Test Way')
+    expect(created[0].event.details).toBe('Park on the street.')
+    expect(event.location).toBe('1 Test Way')
+    expect(event.details).toBe('Park on the street.')
+  })
+
+  it('creates without location and details exactly as before', async () => {
+    const { store, created } = fakeStore()
+    await createUniqueEvent(store, { name: 'Taco Night', date: '', headcount: 0, location: '', details: '' })
+    expect(created).toHaveLength(1)
+    expect(created[0].event.location).toBeUndefined()
+    expect(created[0].event.details).toBeUndefined()
   })
 
   it('retries with a fresh suffix when the insert loses a slug race', async () => {

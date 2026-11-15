@@ -14,7 +14,7 @@ interface CreateEventProps {
 
 /** The create-event form and its success panel, shared by the event-page drawer and the home page. */
 export default function CreateEvent({ store, onClose, onCreated }: CreateEventProps) {
-  const [form, setForm] = useState({ name: '', date: '', headcount: '' })
+  const [form, setForm] = useState({ name: '', date: '', headcount: '', location: '', details: '' })
   const [honeypot, setHoneypot] = useState('')
   const [creating, setCreating] = useState(false)
   const [error, setError] = useState('')
@@ -27,7 +27,10 @@ export default function CreateEvent({ store, onClose, onCreated }: CreateEventPr
     if (isSpamSubmission(honeypot)) {
       const name = form.name.trim() || 'Your potluck'
       setCreated({
-        event: buildNewEvent({ name, date: form.date, headcount: 0 }, uniqueSlug(name, randomSuffix())),
+        event: buildNewEvent(
+          { name, date: form.date, headcount: 0, location: form.location, details: form.details },
+          uniqueSlug(name, randomSuffix()),
+        ),
         adminToken: crypto.randomUUID(),
       })
       return
@@ -44,6 +47,8 @@ export default function CreateEvent({ store, onClose, onCreated }: CreateEventPr
         name,
         date: form.date,
         headcount: Math.max(0, Number(form.headcount) || 0),
+        location: form.location,
+        details: form.details,
       })
       setCreated(result)
       onCreated?.()
@@ -63,7 +68,7 @@ export default function CreateEvent({ store, onClose, onCreated }: CreateEventPr
 
   function reset() {
     setCreated(null)
-    setForm({ name: '', date: '', headcount: '' })
+    setForm({ name: '', date: '', headcount: '', location: '', details: '' })
     setHoneypot('')
     setError('')
     setCopiedLink('')
@@ -158,6 +163,25 @@ export default function CreateEvent({ store, onClose, onCreated }: CreateEventPr
             min={0}
             value={form.headcount}
             onChange={(e) => setForm({ ...form, headcount: e.target.value })}
+          />
+        </label>
+        <label>
+          Location (optional)
+          <input
+            value={form.location}
+            maxLength={200}
+            placeholder="e.g. Stratus Apartments, 820 Lenora St"
+            onChange={(e) => setForm({ ...form, location: e.target.value })}
+          />
+        </label>
+        <label>
+          Details for guests (optional)
+          <textarea
+            rows={5}
+            maxLength={2000}
+            placeholder="Directions, parking, what to expect…"
+            value={form.details}
+            onChange={(e) => setForm({ ...form, details: e.target.value })}
           />
         </label>
         <div className="hp-field" aria-hidden="true">

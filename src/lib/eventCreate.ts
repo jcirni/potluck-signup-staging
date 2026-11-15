@@ -13,13 +13,26 @@ export function uniqueSlug(name: string, suffix: string): string {
   return `${slugify(name)}-${suffix}`
 }
 
+export interface NewEventInput {
+  name: string
+  date: string
+  headcount: number
+  location?: string
+  details?: string
+}
+
 /** Shape the create form into a full event record with the app defaults. */
-export function buildNewEvent(input: { name: string; date: string; headcount: number }, slug: string): PotluckEvent {
+export function buildNewEvent(input: NewEventInput, slug: string): PotluckEvent {
+  // Blank location/details stay absent, matching the drawer save path.
+  const location = input.location?.trim().slice(0, 200)
+  const details = input.details?.trim().slice(0, 2000)
   return {
     id: slug,
     name: input.name.trim().slice(0, 120),
     date: input.date,
     headcount: Number.isFinite(input.headcount) ? Math.max(0, Math.floor(input.headcount)) : 0,
+    location: location || undefined,
+    details: details || undefined,
     targets: { ...DEFAULT_TARGETS },
     dietaryNeeds: { ...EMPTY_DIETARY_NEEDS },
     accent: DEFAULT_ACCENT,
@@ -39,10 +52,7 @@ export interface CreatedEvent {
 }
 
 /** Mint the admin token, keep the raw token in this browser, and insert the event with only its hash. */
-export async function createUniqueEvent(
-  store: SignupStore,
-  input: { name: string; date: string; headcount: number },
-): Promise<CreatedEvent> {
+export async function createUniqueEvent(store: SignupStore, input: NewEventInput): Promise<CreatedEvent> {
   const adminToken = crypto.randomUUID()
   const adminTokenHash = await sha256Hex(adminToken)
   for (let attempt = 0; attempt < 3; attempt++) {
