@@ -15,6 +15,6 @@ jobs:
       - name: Ping the potluck-signup project
         run: |
           curl --fail --silent --show-error \
-            "https://qpzohrhtyhwcvukzjoep.supabase.co/rest/v1/events?select=id&limit=1" \
-            -H "apikey: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFwem9ocmh0eWh3Y3Z1a3pqb2VwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTQ2ODUxNDQsImV4cCI6MjExMDI2MTE0NH0.7XhSSNR-KoKrFLQDsZYSNQMOCndbqMkmiRUffau8BiU" \
-            -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFwem9ocmh0eWh3Y3Z1a3pqb2VwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTQ2ODUxNDQsImV4cCI6MjExMDI2MTE0NH0.7XhSSNR-KoKrFLQDsZYSNQMOCndbqMkmiRUffau8BiU"
+            "https://lccfhahuwlddmqqntghj.supabase.co/rest/v1/events?select=id&limit=1" \
+            -H "apikey: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxjY2ZoYWh1d2xkZG1xcW50Z2hqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTQ3NjkzNTIsImV4cCI6MjExMDM0NTM1Mn0.QD_S-sFMjYobpec3OLqEbPIr6OwyPIkBEhGWmxRIizk" \
+            -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxjY2ZoYWh1d2xkZG1xcW50Z2hqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTQ3NjkzNTIsImV4cCI6MjExMDM0NTM1Mn0.QD_S-sFMjYobpec3OLqEbPIr6OwyPIkBEhGWmxRIizk"
