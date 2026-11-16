@@ -11,6 +11,9 @@ import { DEFAULT_TARGETS, EMPTY_DIETARY_NEEDS } from './types.ts'
 const db = vi.hoisted(() => ({
   events: new Map<string, Record<string, unknown>>(),
   signups: new Map<string, Record<string, unknown>>(),
+  calls: { eventsInsert: 0, eventsUpsert: 0 },
+  // Set to a row to simulate another browser creating the event mid-insert.
+  raceCreate: null as Record<string, unknown> | null,
 }))
 
 vi.mock('@supabase/supabase-js', () => {
@@ -43,10 +46,20 @@ vi.mock('@supabase/supabase-js', () => {
       const table = name === 'signups' ? db.signups : db.events
       return {
         insert: async (row: Record<string, unknown>) => {
+          if (name === 'events') {
+            db.calls.eventsInsert++
+            if (db.raceCreate) {
+              const landed = db.raceCreate
+              db.raceCreate = null
+              table.set(landed.id as string, { ...landed })
+              return { error: { message: 'duplicate key value violates unique constraint "events_pkey"' } }
+            }
+          }
           table.set(row.id as string, { ...row })
           return { error: null }
         },
         upsert: async (row: Record<string, unknown>, opts?: { ignoreDuplicates?: boolean }) => {
+          if (name === 'events') db.calls.eventsUpsert++
           if (opts?.ignoreDuplicates && table.has(row.id as string)) return { error: null }
           table.set(row.id as string, { ...row })
           return { error: null }
@@ -140,6 +153,9 @@ function makeSignup(partial: Partial<Signup> = {}): Signup {
 beforeEach(() => {
   db.events.clear()
   db.signups.clear()
+  db.calls.eventsInsert = 0
+  db.calls.eventsUpsert = 0
+  db.raceCreate = null
   Object.defineProperty(globalThis, 'localStorage', {
     value: new LocalStorageStub(),
     configurable: true,
@@ -323,5 +339,47 @@ describe('SupabaseStore guest edit token across reloads', () => {
     await new SupabaseStore().add(makeSignup({ id: 'signup-2', dish: 'Second Pie' }))
     expect(localStorage.getItem('potluck:admin-token:friendsgiving')).toBe(tokenBefore)
     expect(db.events.get('friendsgiving')?.admin_token_hash).toBe(hashBefore)
+  })
+})
+
+describe('SupabaseStore ensureEvent admin-token safety', () => {
+  function existingEventRow(): Record<string, unknown> {
+    return {
+      id: 'friendsgiving',
+      name: 'Friendsgiving',
+      date: '2026-11-26',
+      headcount: 12,
+      targets: { ...DEFAULT_TARGETS },
+      dietary_needs: { ...EMPTY_DIETARY_NEEDS },
+      accent: 'brass',
+      admin_token_hash: 'the-real-host-hash',
+      created_at: '2026-11-14T00:00:00.000Z',
+    }
+  }
+
+  it('add() on an existing event stores no admin token and writes no event row', async () => {
+    db.events.set('friendsgiving', existingEventRow())
+    await new SupabaseStore().add(makeSignup())
+    expect(localStorage.getItem('potluck:admin-token:friendsgiving')).toBeNull()
+    expect(db.calls.eventsInsert).toBe(0)
+    expect(db.calls.eventsUpsert).toBe(0)
+    expect(db.events.get('friendsgiving')?.admin_token_hash).toBe('the-real-host-hash')
+    expect(db.signups.has('signup-1')).toBe(true)
+  })
+
+  it('add() on a missing event auto-creates it and stores the minted token', async () => {
+    await new SupabaseStore().add(makeSignup())
+    const token = localStorage.getItem('potluck:admin-token:friendsgiving')
+    expect(token).toBeTruthy()
+    expect(db.calls.eventsInsert).toBe(1)
+    expect(db.events.get('friendsgiving')?.admin_token_hash).toBe(await sha256Hex(token as string))
+  })
+
+  it('add() keeps no token when the event row lands mid-insert (create conflict)', async () => {
+    db.raceCreate = existingEventRow()
+    await new SupabaseStore().add(makeSignup())
+    expect(localStorage.getItem('potluck:admin-token:friendsgiving')).toBeNull()
+    expect(db.events.get('friendsgiving')?.admin_token_hash).toBe('the-real-host-hash')
+    expect(db.signups.has('signup-1')).toBe(true)
   })
 })

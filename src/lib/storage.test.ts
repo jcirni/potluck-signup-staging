@@ -1,5 +1,12 @@
-import { describe, expect, it } from 'vitest'
-import { cleanEvent, cleanSignup, mergeTargets, resolveMode, scanAdminEvents } from './storage.ts'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import {
+  captureAdminTokenFromUrl,
+  cleanEvent,
+  cleanSignup,
+  mergeTargets,
+  resolveMode,
+  scanAdminEvents,
+} from './storage.ts'
 import { DEFAULT_TARGETS, EMPTY_DIETARY_NEEDS } from './types.ts'
 
 function rawSignup(partial: Record<string, unknown> = {}): Record<string, unknown> {
@@ -192,6 +199,52 @@ describe('scanAdminEvents', () => {
   it('skips empty slugs and empty tokens', () => {
     const found = scanAdminEvents(fakeStorage({ 'potluck:admin-token:': 'tok', 'potluck:admin-token:blank': '' }))
     expect(found).toEqual([])
+  })
+})
+
+describe('captureAdminTokenFromUrl', () => {
+  const store = new Map<string, string>()
+  const replaceState = vi.fn()
+
+  function stubWindow(search: string) {
+    Object.defineProperty(globalThis, 'localStorage', {
+      value: {
+        getItem: (k: string) => store.get(k) ?? null,
+        setItem: (k: string, v: string) => void store.set(k, String(v)),
+        removeItem: (k: string) => void store.delete(k),
+      },
+      configurable: true,
+      writable: true,
+    })
+    Object.defineProperty(globalThis, 'window', {
+      value: {
+        location: { search, pathname: '/potluck-signup/', hash: '' },
+        history: { replaceState },
+      },
+      configurable: true,
+      writable: true,
+    })
+  }
+
+  afterEach(() => {
+    store.clear()
+    replaceState.mockClear()
+    Reflect.deleteProperty(globalThis, 'window')
+    Reflect.deleteProperty(globalThis, 'localStorage')
+  })
+
+  it('captures the token and strips the admin param, keeping ?event=', () => {
+    stubWindow('?event=friendsgiving&admin=tok-123')
+    captureAdminTokenFromUrl()
+    expect(store.get('potluck:admin-token:friendsgiving')).toBe('tok-123')
+    expect(replaceState).toHaveBeenCalledWith(null, '', '/potluck-signup/?event=friendsgiving')
+  })
+
+  it('does nothing without an admin param', () => {
+    stubWindow('?event=friendsgiving')
+    captureAdminTokenFromUrl()
+    expect(store.size).toBe(0)
+    expect(replaceState).not.toHaveBeenCalled()
   })
 })
 

@@ -150,7 +150,13 @@ export function captureAdminTokenFromUrl(): void {
   const params = new URLSearchParams(window.location.search)
   const eventId = params.get('event')
   const token = params.get('admin')
-  if (eventId && token) saveAdminToken(eventId, token)
+  if (!eventId || !token) return
+  saveAdminToken(eventId, token)
+  // Strip the token from the address bar so a stale admin link in history cannot re-apply it on reload.
+  params.delete('admin')
+  const query = params.toString()
+  const url = `${window.location.pathname}${query ? `?${query}` : ''}${window.location.hash}`
+  window.history.replaceState(null, '', url)
 }
 
 /** Hash of the edit token this browser holds for a signup, if any. */
@@ -542,32 +548,34 @@ export class SupabaseStore implements SignupStore {
   }
 
   /**
-   * add() has no create-event step, so ensure the bound event row exists
-   * first (ignore-on-conflict upsert). The auto-created event's admin token
-   * is minted here and kept in this browser; only its hash is sent.
+   * add() has no create-event step, so a missing bound event row is
+   * auto-created here. An existing row is left fully alone: minting an
+   * admin token for it would poison this browser, since the row carries
+   * a different token's hash and every later host save would be rejected.
    */
   private async ensureEvent(): Promise<void> {
-    let token = eventAdminToken(this.eventId)
-    if (!token) {
-      token = crypto.randomUUID()
-      saveAdminToken(this.eventId, token)
-    }
+    if (await this.getEvent(this.eventId)) return
+    const token = eventAdminToken(this.eventId) ?? crypto.randomUUID()
     const { error } = await this.client()
       .from('events')
-      .upsert(
-        {
-          id: this.eventId,
-          name: this.eventId === DEFAULT_EVENT_ID ? 'Friendsgiving' : this.eventId,
-          date: null,
-          headcount: 0,
-          targets: DEFAULT_TARGETS,
-          dietary_needs: EMPTY_DIETARY_NEEDS,
-          accent: DEFAULT_ACCENT,
-          admin_token_hash: await sha256Hex(token),
-        },
-        { onConflict: 'id', ignoreDuplicates: true },
-      )
-    if (error) throw new Error(`Supabase request failed: ${error.message}`)
+      .insert({
+        id: this.eventId,
+        name: this.eventId === DEFAULT_EVENT_ID ? 'Friendsgiving' : this.eventId,
+        date: null,
+        headcount: 0,
+        targets: DEFAULT_TARGETS,
+        dietary_needs: EMPTY_DIETARY_NEEDS,
+        accent: DEFAULT_ACCENT,
+        admin_token_hash: await sha256Hex(token),
+      })
+    if (!error) {
+      // The token is only worth keeping when this insert actually created the row.
+      saveAdminToken(this.eventId, token)
+      return
+    }
+    // An insert conflict means the row already existed; keep no token for it.
+    if (await this.getEvent(this.eventId)) return
+    throw new Error(`Supabase request failed: ${error.message}`)
   }
 
   async list(): Promise<Signup[]> {
