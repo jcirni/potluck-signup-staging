@@ -5,7 +5,7 @@ import { cuisineColor, loadCatalog, suggestDishes, type Dish } from './lib/catal
 import { allergyRollup, computeGaps, findDuplicates, neededCourses, type CourseGap } from './lib/gaps.ts'
 import { displayEventName } from './lib/eventName.ts'
 import { isSpamSubmission } from './lib/honeypot.ts'
-import { buildICS, icsFilename, shareOrDownloadIcs } from './lib/ics.ts'
+import { buildICS, googleCalendarUrl, icsFilename, shareOrDownloadIcs } from './lib/ics.ts'
 import { buildLinksMailto } from './lib/linksEmail.ts'
 import { installAction, isIosDevice, isStandalone, shouldShowInstallButton } from './lib/install.ts'
 import { SAMPLE_SIGNUPS } from './lib/seed.ts'
@@ -36,6 +36,7 @@ import {
   DEFAULT_TARGETS,
   isAccent,
   isCourse,
+  isTimeOfDay,
   type Accent,
   type Course,
   type PotluckEvent,
@@ -73,6 +74,15 @@ function formatEventDate(iso: string): string {
   const d = new Date(`${iso}T12:00:00`)
   if (Number.isNaN(d.getTime())) return iso
   return d.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })
+}
+
+/** '17:00' -> '5:00 PM'; invalid input passes through. */
+function formatEventTime(hhmm: string): string {
+  const m = /^(\d{2}):(\d{2})$/.exec(hhmm)
+  if (!m) return hhmm
+  const h24 = Number(m[1])
+  const h12 = h24 % 12 === 0 ? 12 : h24 % 12
+  return `${h12}:${m[2]} ${h24 >= 12 ? 'PM' : 'AM'}`
 }
 
 /** Progress line for one course in the gap view. */
@@ -122,7 +132,7 @@ export default function App() {
   const [recipeError, setRecipeError] = useState('')
   const [recipeThanks, setRecipeThanks] = useState(false)
   const [recipeHoneypot, setRecipeHoneypot] = useState('')
-  const [detailsForm, setDetailsForm] = useState({ location: '', details: '' })
+  const [detailsForm, setDetailsForm] = useState({ location: '', time: '', details: '' })
   const [detailsSaved, setDetailsSaved] = useState(false)
   const [detailsError, setDetailsError] = useState('')
   const [formInView, setFormInView] = useState(false)
@@ -224,7 +234,7 @@ export default function App() {
         if (ev) {
           setAccent(ev.accent)
           setEventName(ev.name)
-          setDetailsForm({ location: ev.location ?? '', details: ev.details ?? '' })
+          setDetailsForm({ location: ev.location ?? '', time: ev.startTime ?? '', details: ev.details ?? '' })
           setDetailsSaved(false)
           setDetailsError('')
         }
@@ -348,19 +358,23 @@ export default function App() {
     }
   }
 
-  /** Save location + details through the same host path as the accent. */
+  /** Save location + start time + details through the same host path as the accent. */
   async function saveEventDetails() {
     const location = detailsForm.location.trim()
     const details = detailsForm.details.trim()
+    // A cleared or malformed time input saves as '' and clears the stored time.
+    const startTime = isTimeOfDay(detailsForm.time) ? detailsForm.time : ''
     setDetailsError('')
     try {
       if (mode === 'supabase') {
         const token = eventAdminToken(store.eventId)
-        if (token) await store.updateEvent(store.eventId, { location, details }, await sha256Hex(token))
+        if (token) await store.updateEvent(store.eventId, { location, details, startTime }, await sha256Hex(token))
       } else if (event) {
-        await store.updateEvent(store.eventId, { location, details })
+        await store.updateEvent(store.eventId, { location, details, startTime: startTime || undefined })
       }
-      setEvent((prev) => (prev ? { ...prev, location: location || undefined, details: details || undefined } : prev))
+      setEvent((prev) =>
+        prev ? { ...prev, location: location || undefined, details: details || undefined, startTime: startTime || undefined } : prev,
+      )
       setDetailsSaved(true)
     } catch (err) {
       setDetailsError(err instanceof Error ? err.message : 'Could not save the event details.')
@@ -484,10 +498,15 @@ export default function App() {
     )
   }
 
-  /** Share the .ics when possible; any share failure except a dismissal downloads it instead. */
+  /** One button, three deliveries: ics.ts routes by platform (Google template, ICS open, or ICS download). */
   async function addToCalendar() {
     if (!event || !icsText) return
-    await shareOrDownloadIcs({ text: icsText, filename: icsFilename(event), title: event.name })
+    await shareOrDownloadIcs({
+      text: icsText,
+      filename: icsFilename(event),
+      title: event.name,
+      googleUrl: googleCalendarUrl(event, signups),
+    })
   }
 
   function openCreate() {
@@ -551,7 +570,12 @@ export default function App() {
         </button>
         <p className="hero-eyebrow">Bring a Dish</p>
         <h1 className="hero-name">{displayEventName(event, eventName)}</h1>
-        {event?.date && <p className="hero-date">{formatEventDate(event.date)}</p>}
+        {event?.date && (
+          <p className="hero-date">
+            {formatEventDate(event.date)}
+            {event.startTime ? ` · ${formatEventTime(event.startTime)}` : ''}
+          </p>
+        )}
         {event?.location && <p className="hero-location">{event.location}</p>}
         <div className="stats" data-count={2}>
           <div className="stat">
@@ -668,21 +692,18 @@ export default function App() {
           <ul className="gap-list">
             {allGaps.map((g) => (
               <li key={g.course} className="gap-row">
-                <div className="gap-head">
-                  <strong>{g.course}</strong>
-                  <span className="hint">{gapText(g)}</span>
-                </div>
-                <div className="gapbar" aria-hidden="true">
-                  <div
-                    className="gapbar-fill"
-                    style={{ width: `${g.target > 0 ? Math.min(100, (g.count / g.target) * 100) : 0}%` }}
-                  />
-                </div>
-                {g.need > 0 && (
-                  <button type="button" className="link" onClick={() => claimCourse(g.course)}>
-                    I&rsquo;ll bring this
-                  </button>
-                )}
+                <button type="button" className="gap-claim" onClick={() => claimCourse(g.course)}>
+                  <span className="gap-head">
+                    <strong>{g.course}</strong>
+                    <span className="hint">{gapText(g)}</span>
+                  </span>
+                  <span className="gapbar" aria-hidden="true">
+                    <span
+                      className="gapbar-fill"
+                      style={{ width: `${g.target > 0 ? Math.min(100, (g.count / g.target) * 100) : 0}%` }}
+                    />
+                  </span>
+                </button>
               </li>
             ))}
           </ul>
@@ -723,7 +744,7 @@ export default function App() {
         )}
 
         <section ref={formSectionRef} className="form-section" id="signup">
-          <h2>{editingId ? 'Edit your dish' : 'Sign up — what are you bringing?'}</h2>
+          <h2>{editingId ? 'Edit your dish' : 'What are you bringing?'}</h2>
           {dishes.length > 0 && (
             <div className="picker">
               <label className="picker-search">
@@ -1055,6 +1076,17 @@ export default function App() {
                       placeholder="e.g. Stratus Apartments, 820 Lenora St"
                       onChange={(e) => {
                         setDetailsForm({ ...detailsForm, location: e.target.value })
+                        setDetailsSaved(false)
+                      }}
+                    />
+                  </label>
+                  <label>
+                    Start time (optional)
+                    <input
+                      type="time"
+                      value={detailsForm.time}
+                      onChange={(e) => {
+                        setDetailsForm({ ...detailsForm, time: e.target.value })
                         setDetailsSaved(false)
                       }}
                     />

@@ -115,8 +115,10 @@ summary { cursor: pointer; color: var(--ink-dim); }
 .gap-list li:first-child { padding-top: 2px; }
 .gap-list li:last-child { padding-bottom: 0; border-bottom: 0; }
 .gap-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
-.gapbar { height: 8px; border-radius: 999px; background: var(--track); overflow: hidden; margin: 5px 0; }
-.gapbar-fill { height: 100%; border-radius: 999px; background: var(--accent); transition: width 0.4s ease; }
+.gapbar { display: block; height: 8px; border-radius: 999px; background: var(--track); overflow: hidden; margin: 5px 0; }
+.gapbar-fill { display: block; height: 100%; border-radius: 999px; background: var(--accent); transition: width 0.4s ease; }
+.gap-claim { display: block; width: 100%; text-align: left; background: none; border: 0; padding: 0; color: inherit; }
+.gap-claim:hover .gap-head strong { color: var(--accent-bright); }
 .form-section, #needed, #menu { scroll-margin-top: 16px; }
 .dish-field { position: relative; display: block; }
 .dish-field input { width: 100%; }
