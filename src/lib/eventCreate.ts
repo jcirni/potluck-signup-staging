@@ -1,5 +1,5 @@
 import { saveAdminToken, sha256Hex, type SignupStore } from './storage.ts'
-import { DEFAULT_ACCENT, DEFAULT_TARGETS, EMPTY_DIETARY_NEEDS, slugify, type PotluckEvent } from './types.ts'
+import { DEFAULT_ACCENT, DEFAULT_TARGETS, EMPTY_DIETARY_NEEDS, isTimeOfDay, slugify, type PotluckEvent } from './types.ts'
 
 /** 5-char suffix so two events with the same name rarely collide. */
 export function randomSuffix(): string {
@@ -16,6 +16,7 @@ export function uniqueSlug(name: string, suffix: string): string {
 export interface NewEventInput {
   name: string
   date: string
+  startTime?: string
   headcount: number
   location?: string
   details?: string
@@ -30,6 +31,8 @@ export function buildNewEvent(input: NewEventInput, slug: string): PotluckEvent 
     id: slug,
     name: input.name.trim().slice(0, 120),
     date: input.date,
+    // Only a well-formed 24h time is kept; anything else means no start time.
+    startTime: isTimeOfDay(input.startTime) ? input.startTime : undefined,
     headcount: Number.isFinite(input.headcount) ? Math.max(0, Math.floor(input.headcount)) : 0,
     location: location || undefined,
     details: details || undefined,

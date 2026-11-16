@@ -50,6 +50,8 @@ export interface PotluckEvent {
   name: string
   /** YYYY-MM-DD, or '' when not set yet. */
   date: string
+  /** Optional start time as 24h 'HH:MM' wall-clock; absent when not stated. */
+  startTime?: string
   /** Expected headcount; 0 means not stated. RSVPs (below) are the actual count. */
   headcount: number
   /** Where the event happens, shown under the date; absent when not stated. */
@@ -103,6 +105,11 @@ export const DEFAULT_TARGETS: Targets = {
   Desserts: 2,
   Drinks: 3,
   Supplies: 4,
+}
+
+/** True for a 24h 'HH:MM' wall-clock time string, e.g. '17:00'. */
+export function isTimeOfDay(value: unknown): value is string {
+  return typeof value === 'string' && /^([01]\d|2[0-3]):[0-5]\d$/.test(value)
 }
 
 export function isCourse(value: string): value is Course {

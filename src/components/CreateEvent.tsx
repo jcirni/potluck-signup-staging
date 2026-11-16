@@ -14,7 +14,7 @@ interface CreateEventProps {
 
 /** The create-event form and its success panel, shared by the event-page drawer and the home page. */
 export default function CreateEvent({ store, onClose, onCreated }: CreateEventProps) {
-  const [form, setForm] = useState({ name: '', date: '', headcount: '', location: '', details: '' })
+  const [form, setForm] = useState({ name: '', date: '', time: '', headcount: '', location: '', details: '' })
   const [honeypot, setHoneypot] = useState('')
   const [creating, setCreating] = useState(false)
   const [error, setError] = useState('')
@@ -28,7 +28,7 @@ export default function CreateEvent({ store, onClose, onCreated }: CreateEventPr
       const name = form.name.trim() || 'Your potluck'
       setCreated({
         event: buildNewEvent(
-          { name, date: form.date, headcount: 0, location: form.location, details: form.details },
+          { name, date: form.date, startTime: form.time, headcount: 0, location: form.location, details: form.details },
           uniqueSlug(name, randomSuffix()),
         ),
         adminToken: crypto.randomUUID(),
@@ -46,6 +46,7 @@ export default function CreateEvent({ store, onClose, onCreated }: CreateEventPr
       const result = await createUniqueEvent(store, {
         name,
         date: form.date,
+        startTime: form.time,
         headcount: Math.max(0, Number(form.headcount) || 0),
         location: form.location,
         details: form.details,
@@ -68,7 +69,7 @@ export default function CreateEvent({ store, onClose, onCreated }: CreateEventPr
 
   function reset() {
     setCreated(null)
-    setForm({ name: '', date: '', headcount: '', location: '', details: '' })
+    setForm({ name: '', date: '', time: '', headcount: '', location: '', details: '' })
     setHoneypot('')
     setError('')
     setCopiedLink('')
@@ -155,6 +156,10 @@ export default function CreateEvent({ store, onClose, onCreated }: CreateEventPr
         <label>
           Date (optional)
           <input type="date" value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} />
+        </label>
+        <label>
+          Start time (optional)
+          <input type="time" value={form.time} onChange={(e) => setForm({ ...form, time: e.target.value })} />
         </label>
         <label>
           Rough headcount (optional)

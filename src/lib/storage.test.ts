@@ -122,6 +122,18 @@ describe('cleanEvent', () => {
     expect(cleanEvent(rawEvent({ location: 42 }))?.details).toBeUndefined()
   })
 
+  it('keeps a valid 24h start time and drops malformed ones', () => {
+    expect(cleanEvent(rawEvent({ startTime: '17:00' }))?.startTime).toBe('17:00')
+    expect(cleanEvent(rawEvent({ startTime: '00:00' }))?.startTime).toBe('00:00')
+    expect(cleanEvent(rawEvent({ startTime: '23:59' }))?.startTime).toBe('23:59')
+    expect(cleanEvent(rawEvent())?.startTime).toBeUndefined()
+    expect(cleanEvent(rawEvent({ startTime: '' }))?.startTime).toBeUndefined()
+    expect(cleanEvent(rawEvent({ startTime: '25:00' }))?.startTime).toBeUndefined()
+    expect(cleanEvent(rawEvent({ startTime: '5:00 PM' }))?.startTime).toBeUndefined()
+    expect(cleanEvent(rawEvent({ startTime: '7:00' }))?.startTime).toBeUndefined()
+    expect(cleanEvent(rawEvent({ startTime: 17 }))?.startTime).toBeUndefined()
+  })
+
   it('rejects location and details longer than the database limits', () => {
     expect(cleanEvent(rawEvent({ location: 'l'.repeat(201) }))).toBeNull()
     expect(cleanEvent(rawEvent({ location: 'l'.repeat(200) }))).not.toBeNull()

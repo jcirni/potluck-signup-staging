@@ -81,6 +81,7 @@ vi.mock('@supabase/supabase-js', () => {
         // Same whitelist + coalesce semantics as the SQL function.
         if (p.name != null) row.name = p.name
         if (p.date != null) row.date = p.date
+        if (p.startTime != null) row.start_time = p.startTime
         if (p.headcount != null) row.headcount = p.headcount
         if (p.targets != null) row.targets = p.targets
         if (p.dietaryNeeds != null) row.dietary_needs = p.dietaryNeeds
@@ -261,6 +262,31 @@ describe('SupabaseStore guest edit token across reloads', () => {
     const updated = await store.getEvent('friendsgiving')
     expect(updated?.location).toBe('A different hall')
     expect(updated?.details).toBe('New details.')
+  })
+
+  it('round-trips the event start time and updates or clears it with the admin hash', async () => {
+    const store = new SupabaseStore()
+    const event: PotluckEvent = {
+      id: 'friendsgiving',
+      name: 'Friendsgiving',
+      date: '2026-11-26',
+      startTime: '17:00',
+      headcount: 12,
+      targets: { ...DEFAULT_TARGETS },
+      dietaryNeeds: { ...EMPTY_DIETARY_NEEDS },
+      accent: 'brass',
+      createdAt: '2026-11-14T00:00:00.000Z',
+    }
+    await store.createEvent(event, 'admin-hash')
+    expect(db.events.get('friendsgiving')?.start_time).toBe('17:00')
+    expect((await store.getEvent('friendsgiving'))?.startTime).toBe('17:00')
+
+    await store.updateEvent('friendsgiving', { startTime: '18:30' }, 'admin-hash')
+    expect((await store.getEvent('friendsgiving'))?.startTime).toBe('18:30')
+
+    // Clearing sends '' (the SQL coalesce stores it); reads map it back to unset.
+    await store.updateEvent('friendsgiving', { startTime: '' }, 'admin-hash')
+    expect((await store.getEvent('friendsgiving'))?.startTime).toBeUndefined()
   })
 
   it('round-trips a created event name other than the demo name', async () => {

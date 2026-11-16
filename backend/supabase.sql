@@ -7,6 +7,7 @@ create table if not exists public.events (
   id text primary key,
   name text not null check (char_length(name) between 1 and 120),
   date date,
+  start_time text check (start_time is null or start_time = '' or start_time ~ '^([01][0-9]|2[0-3]):[0-5][0-9]$'),
   headcount integer not null default 0 check (headcount >= 0),
   location text check (char_length(location) <= 200),
   details text check (char_length(details) <= 2000),
@@ -22,6 +23,7 @@ alter table public.events add column if not exists dietary_needs jsonb not null 
 alter table public.events add column if not exists accent text not null default 'brass' check (accent in ('brass', 'burgundy', 'forest', 'slate'));
 alter table public.events add column if not exists location text check (char_length(location) <= 200);
 alter table public.events add column if not exists details text check (char_length(details) <= 2000);
+alter table public.events add column if not exists start_time text check (start_time is null or start_time = '' or start_time ~ '^([01][0-9]|2[0-3]):[0-5][0-9]$');
 
 create table if not exists public.signups (
   id text primary key,
@@ -298,6 +300,7 @@ begin
   update public.events set
     name = coalesce((p_patch ->> 'name')::text, name),
     date = coalesce((p_patch ->> 'date')::date, date),
+    start_time = coalesce((p_patch ->> 'startTime')::text, start_time),
     headcount = coalesce((p_patch ->> 'headcount')::integer, headcount),
     targets = coalesce(p_patch -> 'targets', targets),
     dietary_needs = coalesce(p_patch -> 'dietaryNeeds', dietary_needs),

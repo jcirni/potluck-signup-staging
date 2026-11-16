@@ -70,6 +70,13 @@ describe('buildNewEvent', () => {
     expect(bare.details).toBeUndefined()
   })
 
+  it('keeps a well-formed start time and drops anything else', () => {
+    expect(buildNewEvent({ name: 'X', date: '', startTime: '17:00', headcount: 0 }, 'x-a1b2c').startTime).toBe('17:00')
+    expect(buildNewEvent({ name: 'X', date: '', startTime: '5pm', headcount: 0 }, 'x-a1b2c').startTime).toBeUndefined()
+    expect(buildNewEvent({ name: 'X', date: '', startTime: '', headcount: 0 }, 'x-a1b2c').startTime).toBeUndefined()
+    expect(buildNewEvent({ name: 'X', date: '', headcount: 0 }, 'x-a1b2c').startTime).toBeUndefined()
+  })
+
   it('caps location at 200 chars and details at 2000', () => {
     const ev = buildNewEvent(
       { name: 'X', date: '', headcount: 0, location: 'a'.repeat(250), details: 'b'.repeat(2500) },
@@ -128,6 +135,14 @@ describe('createUniqueEvent', () => {
     expect(created[0].event.details).toBe('Park on the street.')
     expect(event.location).toBe('1 Test Way')
     expect(event.details).toBe('Park on the street.')
+  })
+
+  it('persists the start time given at creation', async () => {
+    const { store, created } = fakeStore()
+    const { event } = await createUniqueEvent(store, { name: 'Taco Night', date: '2026-12-05', startTime: '18:30', headcount: 0 })
+    expect(created).toHaveLength(1)
+    expect(created[0].event.startTime).toBe('18:30')
+    expect(event.startTime).toBe('18:30')
   })
 
   it('creates without location and details exactly as before', async () => {

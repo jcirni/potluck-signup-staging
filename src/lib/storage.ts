@@ -1,6 +1,6 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import type { DietaryNeeds, PotluckEvent, Signup, Targets } from './types.ts'
-import { COURSES, DEFAULT_ACCENT, DEFAULT_TARGETS, EMPTY_DIETARY_NEEDS, isAccent, normalizeCourse } from './types.ts'
+import { COURSES, DEFAULT_ACCENT, DEFAULT_TARGETS, EMPTY_DIETARY_NEEDS, isAccent, isTimeOfDay, normalizeCourse } from './types.ts'
 
 export type StoreMode = 'supabase' | 'local'
 
@@ -214,6 +214,8 @@ export function cleanEvent(raw: unknown): PotluckEvent | null {
     id: r.id,
     name: r.name,
     date: typeof r.date === 'string' ? r.date : '',
+    // A malformed stored time is dropped, not fatal: the date alone still renders.
+    startTime: isTimeOfDay(r.startTime) ? r.startTime : undefined,
     headcount: typeof r.headcount === 'number' ? r.headcount : 0,
     location: typeof r.location === 'string' && r.location !== '' ? r.location : undefined,
     details: typeof r.details === 'string' && r.details !== '' ? r.details : undefined,
@@ -385,6 +387,7 @@ export class SupabaseStore implements SignupStore {
       id: event.id,
       name: event.name,
       date: event.date || null,
+      start_time: event.startTime ?? null,
       headcount: event.headcount,
       location: event.location ?? null,
       details: event.details ?? null,
@@ -417,6 +420,7 @@ export class SupabaseStore implements SignupStore {
       id: r.id,
       name: r.name,
       date: r.date,
+      startTime: r.start_time,
       headcount: r.headcount,
       location: r.location,
       details: r.details,
@@ -446,18 +450,36 @@ export class SupabaseStore implements SignupStore {
   }
 
   async createEvent(event: PotluckEvent, adminTokenHash: string): Promise<void> {
-    const { error } = await this.client().from('events').insert(this.eventRow(event, adminTokenHash))
-    if (error) throw new Error(`Supabase request failed: ${error.message}`)
+    const row = this.eventRow(event, adminTokenHash)
+    const { error } = await this.client().from('events').insert(row)
+    if (!error) return
+    // A database without the start_time migration yet rejects the row; retry without the column.
+    if (/start_time/.test(error.message)) {
+      const legacy = { ...row }
+      delete legacy.start_time
+      const retry = await this.client().from('events').insert(legacy)
+      if (!retry.error) return
+      throw new Error(`Supabase request failed: ${retry.error.message}`)
+    }
+    throw new Error(`Supabase request failed: ${error.message}`)
+  }
+
+  private async fetchEventRow(
+    id: string,
+    columns: string,
+  ): Promise<{ data: Record<string, unknown> | null; error: { message: string } | null }> {
+    const { data, error } = await this.client().from('events').select(columns).eq('id', id).maybeSingle()
+    return { data: data as Record<string, unknown> | null, error }
   }
 
   async getEvent(id: string): Promise<PotluckEvent | null> {
-    const { data, error } = await this.client()
-      .from('events')
-      .select('id,name,date,headcount,location,details,targets,dietary_needs,accent,created_at')
-      .eq('id', id)
-      .maybeSingle()
+    const withTime = 'id,name,date,start_time,headcount,location,details,targets,dietary_needs,accent,created_at'
+    const withoutTime = 'id,name,date,headcount,location,details,targets,dietary_needs,accent,created_at'
+    let { data, error } = await this.fetchEventRow(id, withTime)
+    // Same pre-migration fallback as createEvent: read without the column instead of failing.
+    if (error && /start_time/.test(error.message)) ({ data, error } = await this.fetchEventRow(id, withoutTime))
     if (error) throw new Error(`Supabase request failed: ${error.message}`)
-    return data ? this.eventFromRow(data as Record<string, unknown>) : null
+    return data ? this.eventFromRow(data) : null
   }
 
   async listEvents(): Promise<PotluckEvent[]> {
