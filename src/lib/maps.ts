@@ -1,7 +1,4 @@
-import { calendarPlatform, type CalendarPlatform } from './ics.ts'
-
-/** Maps link for an address: Apple Maps on iOS (opens the app), Google Maps everywhere else. */
-export function mapsUrl(location: string, platform: CalendarPlatform = calendarPlatform()): string {
-  const q = encodeURIComponent(location)
-  return platform === 'ios' ? `https://maps.apple.com/?q=${q}` : `https://www.google.com/maps/search/?api=1&query=${q}`
+/** Maps link for an address: Google's universal URL, which opens the Google Maps app when installed and the web map otherwise. */
+export function mapsUrl(location: string): string {
+  return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(location)}`
 }
