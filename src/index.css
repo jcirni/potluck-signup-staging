@@ -137,9 +137,12 @@ summary { cursor: pointer; color: var(--ink-dim); }
 .picker-row:hover { border-color: var(--line); }
 .picker-row.picked { border-color: var(--accent); background: var(--accent-soft); }
 .picker-row.own { border-color: var(--accent); background: var(--accent-soft); margin: 6px 0; }
-.picker-name { flex: 1; min-width: 0; font-weight: 600; }
-.chip { border-radius: 999px; padding: 1px 8px; font-size: 0.75em; font-weight: 700; color: #1c160d; white-space: nowrap; }
-.badge { border: 1px solid var(--line-soft); border-radius: 999px; padding: 0 7px; font-size: 0.75em; color: var(--ink-dim); white-space: nowrap; }
+.picker-name { flex: 1; min-width: 0; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.chip { flex: 0 1 auto; min-width: 0; max-width: 38%; overflow: hidden; text-overflow: ellipsis; border-radius: 999px; padding: 1px 8px; font-size: 0.75em; font-weight: 700; color: #1c160d; white-space: nowrap; }
+.badge { flex-shrink: 0; border: 1px solid var(--line-soft); border-radius: 999px; padding: 0 7px; font-size: 0.75em; color: var(--ink-dim); white-space: nowrap; }
+.picker-filters { display: flex; gap: 8px; margin-bottom: 8px; }
+.picker-filters label { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; font-size: 0.9em; color: var(--ink-dim); }
+.picker-filters select { width: 100%; min-width: 0; }
 .sticky-signup { display: none; }
 .home-hero { padding-top: 30px; }
 .home-icon { display: block; margin: 0 auto 6px; }

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import CreateEvent from './components/CreateEvent.tsx'
 import Home from './components/Home.tsx'
-import { cuisineColor, loadCatalog, suggestDishes, type Dish } from './lib/catalog.ts'
+import { cuisineColor, cuisinesOf, filterDishes, loadCatalog, suggestDishes, type Dish } from './lib/catalog.ts'
 import { allergyRollup, computeGaps, findDuplicates, neededCourses, type CourseGap } from './lib/gaps.ts'
 import { displayEventName } from './lib/eventName.ts'
 import { isSpamSubmission } from './lib/honeypot.ts'
@@ -124,6 +124,8 @@ export default function App() {
   })
   const [dishes, setDishes] = useState<Dish[]>([])
   const [dishFilter, setDishFilter] = useState('')
+  const [dishCourse, setDishCourse] = useState<Course | 'All'>('All')
+  const [dishCuisine, setDishCuisine] = useState('All')
   const [pickedDishId, setPickedDishId] = useState<string | null>(null)
   const [dishListOpen, setDishListOpen] = useState(false)
   const [recipePrompt, setRecipePrompt] = useState<{ dish: string; name: string; servings: number } | null>(null)
@@ -269,12 +271,11 @@ export default function App() {
   const icsText = useMemo(() => (event ? buildICS(event, signups) : ''), [event, signups])
   const showInstallButton = shouldShowInstallButton(standalone, justInstalled)
   const pickedDish = useMemo(() => dishes.find((d) => d.id === pickedDishId) ?? null, [dishes, pickedDishId])
-  const filteredDishes = useMemo(() => {
-    const q = dishFilter.trim().toLowerCase()
-    const sorted = [...dishes].sort((a, b) => a.name.localeCompare(b.name))
-    if (!q) return sorted
-    return sorted.filter((d) => `${d.name} ${d.cuisine} ${d.course}`.toLowerCase().includes(q))
-  }, [dishes, dishFilter])
+  const filteredDishes = useMemo(
+    () => filterDishes(dishes, { query: dishFilter, course: dishCourse, cuisine: dishCuisine }),
+    [dishes, dishFilter, dishCourse, dishCuisine],
+  )
+  const cuisineOptions = useMemo(() => cuisinesOf(dishes), [dishes])
   // The search text doubles as an add-your-own entry unless it exactly names a catalog dish.
   const ownDishName = dishFilter.trim()
   const showOwnDish = ownDishName !== '' && !filteredDishes.some((d) => d.name.toLowerCase() === ownDishName.toLowerCase())
@@ -756,6 +757,29 @@ export default function App() {
                   onChange={(e) => setDishFilter(e.target.value)}
                 />
               </label>
+              <div className="picker-filters">
+                <label>
+                  Course
+                  <select
+                    value={dishCourse}
+                    onChange={(e) => setDishCourse(isCourse(e.target.value) ? e.target.value : 'All')}
+                  >
+                    <option value="All">All courses</option>
+                    {COURSES.map((c) => (
+                      <option key={c} value={c}>{c}</option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  Cuisine
+                  <select value={dishCuisine} onChange={(e) => setDishCuisine(e.target.value)}>
+                    <option value="All">All cuisines</option>
+                    {cuisineOptions.map((c) => (
+                      <option key={c} value={c}>{c}</option>
+                    ))}
+                  </select>
+                </label>
+              </div>
               {pickedDish && (
                 <p className="hint">
                   Picked: <strong>{pickedDish.name}</strong>{' '}

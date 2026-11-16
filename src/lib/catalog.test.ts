@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
-import { CUISINE_PALETTE, cuisineColor, cuisinesOf, formatQuantity, scaleIngredients, suggestDishes, validateCatalog, type Dish } from './catalog.ts'
+import { CUISINE_PALETTE, cuisineColor, cuisinesOf, filterDishes, formatQuantity, scaleIngredients, suggestDishes, validateCatalog, type Dish } from './catalog.ts'
 
 function dish(partial: Partial<Dish> & { id: string }): Dish {
   return {
@@ -131,6 +131,43 @@ describe('suggestDishes', () => {
     expect(suggestDishes(dishes, 'a', 2)).toHaveLength(2)
     expect(suggestDishes(dishes, '   ')).toEqual([])
     expect(suggestDishes(dishes, 'zzz')).toEqual([])
+  })
+})
+
+describe('filterDishes', () => {
+  const dishes = [
+    dish({ id: 'baklava', name: 'Baklava', cuisine: 'Middle Eastern', course: 'Desserts' }),
+    dish({ id: 'baked-ziti', name: 'Baked Ziti', cuisine: 'Italian', course: 'Mains' }),
+    dish({ id: 'apple-crisp', name: 'Apple Crisp', cuisine: 'American', course: 'Desserts' }),
+    dish({ id: 'bruschetta', name: 'Bruschetta', cuisine: 'Italian', course: 'Appetizers' }),
+  ]
+
+  it('returns everything name-sorted when no filters are set', () => {
+    expect(filterDishes(dishes).map((d) => d.id)).toEqual(['apple-crisp', 'baked-ziti', 'baklava', 'bruschetta'])
+    expect(filterDishes(dishes, { course: 'All', cuisine: 'All', query: '' })).toHaveLength(4)
+  })
+
+  it('filters by course and by cuisine independently', () => {
+    expect(filterDishes(dishes, { course: 'Desserts' }).map((d) => d.id)).toEqual(['apple-crisp', 'baklava'])
+    expect(filterDishes(dishes, { cuisine: 'Italian' }).map((d) => d.id)).toEqual(['baked-ziti', 'bruschetta'])
+  })
+
+  it('combines course, cuisine, and search text (AND)', () => {
+    expect(filterDishes(dishes, { course: 'Desserts', cuisine: 'Italian' })).toEqual([])
+    expect(filterDishes(dishes, { course: 'Appetizers', cuisine: 'Italian', query: 'brus' }).map((d) => d.id)).toEqual(['bruschetta'])
+    expect(filterDishes(dishes, { cuisine: 'Italian', query: 'ziti' }).map((d) => d.id)).toEqual(['baked-ziti'])
+  })
+
+  it('keeps the old search behavior: text matches name, cuisine, or course', () => {
+    expect(filterDishes(dishes, { query: 'middle' }).map((d) => d.id)).toEqual(['baklava'])
+    expect(filterDishes(dishes, { query: 'MAINS' }).map((d) => d.id)).toEqual(['baked-ziti'])
+    expect(filterDishes(dishes, { query: 'zzz' })).toEqual([])
+  })
+
+  it('does not mutate the input array', () => {
+    const before = dishes.map((d) => d.id)
+    filterDishes(dishes, { course: 'Desserts' })
+    expect(dishes.map((d) => d.id)).toEqual(before)
   })
 })
 

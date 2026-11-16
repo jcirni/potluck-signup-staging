@@ -178,6 +178,21 @@ export function cuisineColor(cuisine: string): string {
   return CUISINE_PALETTE[hash % CUISINE_PALETTE.length]
 }
 
+/** Picker list: name-sorted dishes narrowed by search text, course, and cuisine (the three combine, AND). */
+export function filterDishes(
+  dishes: Dish[],
+  opts: { query?: string; course?: Course | 'All'; cuisine?: string } = {},
+): Dish[] {
+  const q = (opts.query ?? '').trim().toLowerCase()
+  const course = opts.course ?? 'All'
+  const cuisine = opts.cuisine ?? 'All'
+  return [...dishes]
+    .sort((a, b) => a.name.localeCompare(b.name))
+    .filter((d) => course === 'All' || d.course === course)
+    .filter((d) => cuisine === 'All' || d.cuisine === cuisine)
+    .filter((d) => !q || `${d.name} ${d.cuisine} ${d.course}`.toLowerCase().includes(q))
+}
+
 /** Autocomplete matches: name substring hits first (alphabetical), cuisine hits fill the rest. */
 export function suggestDishes(dishes: Dish[], query: string, limit = 6): Dish[] {
   const q = query.trim().toLowerCase()
