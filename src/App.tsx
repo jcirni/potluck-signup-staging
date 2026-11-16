@@ -6,6 +6,7 @@ import { allergyRollup, computeGaps, findDuplicates, neededCourses, type CourseG
 import { displayEventName, showDeviceOnlyNotice, type EventLoad } from './lib/eventName.ts'
 import { isSpamSubmission } from './lib/honeypot.ts'
 import { buildICS, calendarPlatform, calendarTarget } from './lib/ics.ts'
+import { mapsUrl } from './lib/maps.ts'
 import { buildLinksMailto } from './lib/linksEmail.ts'
 import { installAction, isIosDevice, isStandalone, shouldShowInstallButton } from './lib/install.ts'
 import { SAMPLE_SIGNUPS } from './lib/seed.ts'
@@ -587,7 +588,13 @@ export default function App() {
             {event.startTime ? ` · ${formatEventTime(event.startTime)}` : ''}
           </p>
         )}
-        {event?.location && <p className="hero-location">{event.location}</p>}
+        {event?.location && (
+          <p className="hero-location">
+            <a href={mapsUrl(event.location)} target="_blank" rel="noopener noreferrer">
+              {event.location}
+            </a>
+          </p>
+        )}
         <div className="stats" data-count={2}>
           <div className="stat">
             <span className="stat-num">{signups.length}</span>
@@ -606,7 +613,7 @@ export default function App() {
             What&rsquo;s needed
           </button>
           <button type="button" onClick={scrollToForm}>
-            Sign up
+            Add Dish
           </button>
         </nav>
         <div className="hero-actions">
@@ -931,7 +938,7 @@ export default function App() {
               />
             </label>
             <div className="row">
-              <button type="submit" className="primary">{editingId ? 'Save changes' : 'Sign up'}</button>
+              <button type="submit" className="primary">{editingId ? 'Save changes' : 'Add Dish'}</button>
               {editingId && (
                 <button
                   type="button"
@@ -1314,7 +1321,7 @@ export default function App() {
 
       {!formInView && !manageOpen && !createOpen && (
         <button type="button" className="sticky-signup" onClick={scrollToForm}>
-          {editingId ? 'Back to the form' : 'Sign up'}
+          {editingId ? 'Back to the form' : 'Add Dish'}
         </button>
       )}
     </div>
