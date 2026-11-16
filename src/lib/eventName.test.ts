@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { displayEventName } from './eventName.ts'
+import { displayEventName, showDeviceOnlyNotice } from './eventName.ts'
 import { DEFAULT_TARGETS, EMPTY_DIETARY_NEEDS, type PotluckEvent } from './types.ts'
 
 function event(partial: Partial<PotluckEvent>): PotluckEvent {
@@ -24,5 +24,15 @@ describe('displayEventName', () => {
   it('falls back to the local name when no event record loaded', () => {
     expect(displayEventName(null, 'Friendsgiving')).toBe('Friendsgiving')
     expect(displayEventName(null, 'Neighborhood Cookout')).toBe('Neighborhood Cookout')
+  })
+})
+
+describe('showDeviceOnlyNotice', () => {
+  it('shows only when the load resolved missing and the browser holds the host token', () => {
+    expect(showDeviceOnlyNotice('missing', true)).toBe(true)
+    expect(showDeviceOnlyNotice('missing', false)).toBe(false)
+    expect(showDeviceOnlyNotice('found', true)).toBe(false)
+    expect(showDeviceOnlyNotice('failed', true)).toBe(false)
+    expect(showDeviceOnlyNotice('pending', true)).toBe(false)
   })
 })

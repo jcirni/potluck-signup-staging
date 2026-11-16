@@ -3,7 +3,7 @@ import CreateEvent from './components/CreateEvent.tsx'
 import Home from './components/Home.tsx'
 import { cuisineColor, cuisinesOf, filterDishes, loadCatalog, suggestDishes, type Dish } from './lib/catalog.ts'
 import { allergyRollup, computeGaps, findDuplicates, neededCourses, type CourseGap } from './lib/gaps.ts'
-import { displayEventName } from './lib/eventName.ts'
+import { displayEventName, showDeviceOnlyNotice, type EventLoad } from './lib/eventName.ts'
 import { isSpamSubmission } from './lib/honeypot.ts'
 import { buildICS, googleCalendarUrl, icsFilename, shareOrDownloadIcs } from './lib/ics.ts'
 import { buildLinksMailto } from './lib/linksEmail.ts'
@@ -118,6 +118,7 @@ export default function App() {
   const [iosDevice] = useState(isIosDevice)
   const [installHint, setInstallHint] = useState<'ios' | 'menu' | null>(null)
   const [event, setEvent] = useState<PotluckEvent | null>(null)
+  const [eventLoad, setEventLoad] = useState<EventLoad>('pending')
   const [accent, setAccent] = useState<Accent>(() => {
     const saved = localStorage.getItem(ACCENT_KEY)
     return isAccent(saved) ? saved : DEFAULT_ACCENT
@@ -229,10 +230,12 @@ export default function App() {
     void refresh(s, mode === 'local')
     // The event record carries the date, accent, and host details; modes without one leave it null.
     setEvent(null)
+    setEventLoad('pending')
     void s
       .getEvent(s.eventId)
       .then((ev) => {
         setEvent(ev)
+        setEventLoad(ev ? 'found' : 'missing')
         if (ev) {
           setAccent(ev.accent)
           setEventName(ev.name)
@@ -241,7 +244,10 @@ export default function App() {
           setDetailsError('')
         }
       })
-      .catch(() => setEvent(null))
+      .catch(() => {
+        setEvent(null)
+        setEventLoad('failed')
+      })
   }, [mode, refresh, isHome])
 
   useEffect(() => {
@@ -610,6 +616,13 @@ export default function App() {
           )}
         </div>
       </header>
+      {showDeviceOnlyNotice(eventLoad, eventAdminToken(store.eventId) !== undefined) && (
+        <div className="notice-band">
+          <p className="notice" role="alert">
+            This event isn&rsquo;t in the shared database yet. It may have been created on this device only.
+          </p>
+        </div>
+      )}
       {event?.details && (
         <div className="details-band">
           <section className="details-card">
@@ -819,6 +832,7 @@ export default function App() {
               )}
             </div>
           )}
+          <h2>Add Your Dish</h2>
           <form onSubmit={submit} className="form">
             <label>
               Your name

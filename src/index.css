@@ -101,6 +101,8 @@ summary { cursor: pointer; color: var(--ink-dim); }
 .hero-date { margin: 0; font-size: 1.05em; font-weight: 500; color: var(--ink-dim); }
 .hero-location { margin: 3px 0 0; font-size: 0.98em; font-weight: 600; color: var(--ink-dim); }
 .details-band { width: min(1068px, calc(100% - 32px)); margin: 14px auto 0; }
+.notice-band { width: min(1068px, calc(100% - 32px)); margin: 14px auto 0; }
+.notice-band .notice { margin: 0; }
 .details-card { background: var(--panel); border: 1px solid var(--line-soft); border-radius: 18px; padding: 16px 18px; }
 .details-text { margin: 0; white-space: pre-line; line-height: 1.55; }
 .hp-field { position: absolute; left: -9999px; top: 0; width: 1px; height: 1px; overflow: hidden; }
