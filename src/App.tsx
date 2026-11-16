@@ -291,6 +291,8 @@ export default function App() {
     setCalHref(url)
     return () => URL.revokeObjectURL(url)
   }, [calTarget])
+  // Holding the event's admin token makes this browser the host: it can edit or remove any signup.
+  const isHost = eventAdminToken(store.eventId) !== undefined
   const showInstallButton = shouldShowInstallButton(standalone, justInstalled)
   const pickedDish = useMemo(() => dishes.find((d) => d.id === pickedDishId) ?? null, [dishes, pickedDishId])
   const filteredDishes = useMemo(
@@ -418,7 +420,7 @@ export default function App() {
     setError('')
     try {
       if (editingId) {
-        await store.update(editingId, {
+        const patch = {
           name,
           dish,
           dishId,
@@ -427,7 +429,14 @@ export default function App() {
           allergies: form.allergies.trim(),
           servings,
           sample: undefined,
-        })
+        }
+        // Editing someone else's dish goes through the host path, which checks the admin token instead.
+        const adminToken = eventAdminToken(store.eventId)
+        if (!ownsSignup(editingId) && adminToken) {
+          await store.updateSignup(editingId, patch, { eventId: store.eventId, adminTokenHash: await sha256Hex(adminToken) })
+        } else {
+          await store.update(editingId, patch)
+        }
         setNotice('Updated.')
       } else {
         const signup: Signup = {
@@ -493,8 +502,14 @@ export default function App() {
   async function removeSignup(s: Signup) {
     setConfirmRemoveId(null)
     try {
-      await store.remove(s.id)
-      forgetToken(s.id)
+      // Removing someone else's dish goes through the host path, which checks the admin token instead.
+      const adminToken = eventAdminToken(store.eventId)
+      if (!ownsSignup(s.id) && adminToken) {
+        await store.removeSignup(s.id, { eventId: store.eventId, adminTokenHash: await sha256Hex(adminToken) })
+      } else {
+        await store.remove(s.id)
+        forgetToken(s.id)
+      }
       await refresh(store, false)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not remove that signup.')
@@ -664,7 +679,7 @@ export default function App() {
                   </h3>
                   <ul className="menu">
                     {rows.map((s) => {
-                      const canEdit = s.sample === true || ownsSignup(s.id)
+                      const canEdit = s.sample === true || ownsSignup(s.id) || isHost
                       return (
                         <li key={s.id}>
                           <strong>{s.dish}</strong> — {s.name}

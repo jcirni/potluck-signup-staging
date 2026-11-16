@@ -111,6 +111,34 @@ vi.mock('@supabase/supabase-js', () => {
         db.signups.delete(args.p_signup_id as string)
         return { error: null }
       }
+      if (fn === 'update_signup_as_admin') {
+        const ev = db.events.get(args.p_event_id as string)
+        if (!ev || ev.admin_token_hash !== args.p_admin_token_hash) {
+          return { error: { message: 'Not authorized for this event.' } }
+        }
+        const row = db.signups.get(args.p_signup_id as string)
+        if (!row || row.event_id !== args.p_event_id) return { error: null }
+        const p = args.p_patch as Record<string, unknown>
+        // Same whitelist + coalesce semantics as the SQL function.
+        if (p.dishId != null) row.dish_id = p.dishId
+        if (p.scale != null) row.scale = p.scale
+        if (p.name != null) row.name = p.name
+        if (p.dish != null) row.dish = p.dish
+        if (p.course != null) row.course = p.course
+        if (p.needOven != null) row.need_oven = p.needOven
+        if (p.allergies != null) row.allergies = p.allergies
+        if (p.servings != null) row.servings = p.servings
+        return { error: null }
+      }
+      if (fn === 'delete_signup_as_admin') {
+        const ev = db.events.get(args.p_event_id as string)
+        if (!ev || ev.admin_token_hash !== args.p_admin_token_hash) {
+          return { error: { message: 'Not authorized for this event.' } }
+        }
+        const row = db.signups.get(args.p_signup_id as string)
+        if (row && row.event_id === args.p_event_id) db.signups.delete(args.p_signup_id as string)
+        return { error: null }
+      }
       return { error: { message: `unknown rpc ${fn}` } }
     },
   }
@@ -229,6 +257,45 @@ describe('SupabaseStore guest edit token across reloads', () => {
     await expect(new SupabaseStore().remove('signup-1')).rejects.toThrow(
       'Supabase request failed: Not authorized to remove this signup.',
     )
+  })
+
+  it('lets the host edit and remove a signup from another browser with the admin hash', async () => {
+    const event: PotluckEvent = {
+      id: 'friendsgiving',
+      name: 'Friendsgiving',
+      date: '2026-11-26',
+      headcount: 12,
+      targets: { ...DEFAULT_TARGETS },
+      dietaryNeeds: { ...EMPTY_DIETARY_NEEDS },
+      accent: 'brass',
+      createdAt: '2026-11-14T00:00:00.000Z',
+    }
+    await new SupabaseStore().createEvent(event, 'admin-hash')
+    await new SupabaseStore().add(makeSignup())
+
+    // A different browser: no guest edit token, only the host's admin hash.
+    Object.defineProperty(globalThis, 'localStorage', {
+      value: new LocalStorageStub(),
+      configurable: true,
+      writable: true,
+    })
+    const hostBrowser = new SupabaseStore()
+    await hostBrowser.updateSignup(
+      'signup-1',
+      { dish: 'Host Fixed Pie', servings: 10 },
+      { eventId: 'friendsgiving', adminTokenHash: 'admin-hash' },
+    )
+    expect(db.signups.get('signup-1')).toMatchObject({ dish: 'Host Fixed Pie', servings: 10 })
+
+    await expect(
+      hostBrowser.updateSignup('signup-1', { dish: 'Nope' }, { eventId: 'friendsgiving', adminTokenHash: 'wrong-hash' }),
+    ).rejects.toThrow('Not authorized for this event.')
+    await expect(
+      hostBrowser.removeSignup('signup-1', { eventId: 'friendsgiving', adminTokenHash: 'wrong-hash' }),
+    ).rejects.toThrow('Not authorized for this event.')
+
+    await hostBrowser.removeSignup('signup-1', { eventId: 'friendsgiving', adminTokenHash: 'admin-hash' })
+    expect(db.signups.has('signup-1')).toBe(false)
   })
 
   it('round-trips the event accent and updates it only with the admin hash', async () => {

@@ -34,7 +34,7 @@ export interface SignupStore {
   updateEvent(id: string, patch: Partial<PotluckEvent>, adminTokenHash?: string): Promise<void>
   listSignups(eventId: string): Promise<Signup[]>
   addSignup(signup: Signup): Promise<void>
-  updateSignup(id: string, patch: Partial<Signup>, editTokenHash?: string): Promise<void>
+  updateSignup(id: string, patch: Partial<Signup>, opts?: { eventId: string; editTokenHash?: string; adminTokenHash?: string }): Promise<void>
   removeSignup(id: string, opts?: { eventId: string; editTokenHash?: string; adminTokenHash?: string }): Promise<void>
   /** Signups for the bound event (eventId above). */
   list(): Promise<Signup[]>
@@ -517,8 +517,22 @@ export class SupabaseStore implements SignupStore {
     if (error) throw new Error(`Supabase request failed: ${error.message}`)
   }
 
-  async updateSignup(id: string, patch: Partial<Signup>, editTokenHash?: string): Promise<void> {
-    const hash = editTokenHash ?? (await storedEditTokenHash(id))
+  async updateSignup(
+    id: string,
+    patch: Partial<Signup>,
+    opts: { eventId: string; editTokenHash?: string; adminTokenHash?: string } = { eventId: this.eventId },
+  ): Promise<void> {
+    if (opts.adminTokenHash) {
+      const { error } = await this.client().rpc('update_signup_as_admin', {
+        p_event_id: opts.eventId,
+        p_admin_token_hash: opts.adminTokenHash,
+        p_signup_id: id,
+        p_patch: patch,
+      })
+      if (error) throw new Error(`Supabase request failed: ${error.message}`)
+      return
+    }
+    const hash = opts.editTokenHash ?? (await storedEditTokenHash(id))
     if (!hash) throw new Error('Only the browser that signed up can edit this dish.')
     const { error } = await this.client().rpc('update_signup', {
       p_signup_id: id,

@@ -95,7 +95,8 @@ of a link or a token, and the database enforces it:
   wipe rows through the REST API.
 - Edits and deletes go through SECURITY DEFINER functions
   (`update_signup`, `delete_signup`, `update_rsvp`, `delete_rsvp`,
-  `update_event_as_admin`, and the `*_as_admin` delete variants) that
+  `update_event_as_admin`, `update_signup_as_admin`, and the
+  `*_as_admin` delete variants) that
   check the caller's token hash against the stored hash first.
 - Abuse armor: length checks on every text field (mirrored by the
   cleaners in `src/lib/storage.ts`), a trigger capping each event at
