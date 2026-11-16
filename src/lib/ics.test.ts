@@ -1,5 +1,5 @@
-import { describe, expect, it, vi } from 'vitest'
-import { buildICS, calendarPlatform, googleCalendarUrl, icsFilename, isShareAbort, shareOrDownloadIcs } from './ics.ts'
+import { describe, expect, it } from 'vitest'
+import { buildICS, calendarPlatform, calendarTarget, googleCalendarUrl, icsFilename } from './ics.ts'
 import { DEFAULT_TARGETS, EMPTY_DIETARY_NEEDS, type PotluckEvent, type Signup } from './types.ts'
 
 function event(partial: Partial<PotluckEvent>): PotluckEvent {
@@ -145,80 +145,31 @@ describe('calendarPlatform', () => {
   })
 })
 
-describe('shareOrDownloadIcs', () => {
-  const base = { text: 'BEGIN:VCALENDAR', filename: 'party.ics', title: 'Party' }
-
-  it('shares when file sharing is supported and the share succeeds', async () => {
-    const download = vi.fn()
-    const nav = { canShare: () => true, share: vi.fn(async () => {}) }
-    await expect(shareOrDownloadIcs({ ...base, nav, download })).resolves.toBe('shared')
-    expect(download).not.toHaveBeenCalled()
+describe('calendarTarget', () => {
+  it('points Android at the Google template link', () => {
+    const target = calendarTarget('android', event({}), [])
+    expect(target.kind).toBe('google')
+    if (target.kind === 'google') expect(target.url).toContain('calendar.google.com/calendar/render')
   })
 
-  it('stays silent on a genuine user dismissal (AbortError)', async () => {
-    const download = vi.fn()
-    const nav = { canShare: () => true, share: vi.fn(async () => { throw new DOMException('cancelled', 'AbortError') }) }
-    await expect(shareOrDownloadIcs({ ...base, nav, download })).resolves.toBe('cancelled')
-    expect(download).not.toHaveBeenCalled()
-    expect(isShareAbort(new DOMException('x', 'AbortError'))).toBe(true)
-    expect(isShareAbort(new DOMException('x', 'NotAllowedError'))).toBe(false)
+  it('gives iOS the ICS itself, opened in place rather than downloaded', () => {
+    const target = calendarTarget('ios', event({}), [])
+    expect(target.kind).toBe('ics')
+    if (target.kind === 'ics') {
+      expect(target.download).toBe(false)
+      expect(target.filename).toBe('friendsgiving.ics')
+      expect(target.text).toContain('BEGIN:VCALENDAR')
+    }
   })
 
-  it('falls back to download when share rejects with NotAllowedError', async () => {
-    const download = vi.fn()
-    const nav = { canShare: () => true, share: vi.fn(async () => { throw new DOMException('no gesture', 'NotAllowedError') }) }
-    await expect(shareOrDownloadIcs({ ...base, nav, download })).resolves.toBe('downloaded')
-    expect(download).toHaveBeenCalledTimes(1)
-    expect(download).toHaveBeenCalledWith(base.text, base.filename)
+  it('gives other platforms the ICS as a file download', () => {
+    const target = calendarTarget('other', event({}), [])
+    expect(target.kind).toBe('ics')
+    if (target.kind === 'ics') expect(target.download).toBe(true)
   })
 
-  it('downloads directly when file sharing is unsupported', async () => {
-    const download = vi.fn()
-    const nav = { canShare: () => false, share: vi.fn(async () => {}) }
-    await expect(shareOrDownloadIcs({ ...base, nav, download })).resolves.toBe('downloaded')
-    expect(nav.share).not.toHaveBeenCalled()
-    expect(download).toHaveBeenCalledTimes(1)
-  })
-
-  it('opens the Google template link on Android instead of touching the ICS', async () => {
-    const download = vi.fn()
-    const open = vi.fn()
-    const openUrl = vi.fn()
-    const nav = { canShare: () => true, share: vi.fn(async () => {}) }
-    const googleUrl = 'https://calendar.google.com/calendar/render?action=TEMPLATE'
-    await expect(
-      shareOrDownloadIcs({ ...base, nav, download, open, openUrl, platform: 'android', googleUrl }),
-    ).resolves.toBe('opened')
-    expect(openUrl).toHaveBeenCalledWith(googleUrl)
-    expect(nav.share).not.toHaveBeenCalled()
-    expect(open).not.toHaveBeenCalled()
-    expect(download).not.toHaveBeenCalled()
-  })
-
-  it('opens the ICS on iOS when file sharing is unsupported', async () => {
-    const download = vi.fn()
-    const open = vi.fn()
-    const nav = { canShare: () => false, share: vi.fn(async () => {}) }
-    await expect(shareOrDownloadIcs({ ...base, nav, download, open, platform: 'ios' })).resolves.toBe('opened')
-    expect(open).toHaveBeenCalledWith(base.text, base.filename)
-    expect(download).not.toHaveBeenCalled()
-  })
-
-  it('opens the ICS on iOS when the share attempt fails', async () => {
-    const download = vi.fn()
-    const open = vi.fn()
-    const nav = { canShare: () => true, share: vi.fn(async () => { throw new DOMException('no gesture', 'NotAllowedError') }) }
-    await expect(shareOrDownloadIcs({ ...base, nav, download, open, platform: 'ios' })).resolves.toBe('opened')
-    expect(open).toHaveBeenCalledTimes(1)
-    expect(download).not.toHaveBeenCalled()
-  })
-
-  it('still honors an iOS share dismissal without opening or downloading', async () => {
-    const download = vi.fn()
-    const open = vi.fn()
-    const nav = { canShare: () => true, share: vi.fn(async () => { throw new DOMException('cancelled', 'AbortError') }) }
-    await expect(shareOrDownloadIcs({ ...base, nav, download, open, platform: 'ios' })).resolves.toBe('cancelled')
-    expect(open).not.toHaveBeenCalled()
-    expect(download).not.toHaveBeenCalled()
+  it('falls back to the ICS on Android when the event has no date', () => {
+    const target = calendarTarget('android', event({ date: '' }), [])
+    expect(target.kind).toBe('ics')
   })
 })

@@ -30,46 +30,6 @@ export function icsFilename(event: PotluckEvent): string {
   return `${event.id}.ics`
 }
 
-/** Only a genuine user dismissal (AbortError) should stay silent; other share failures fall back. */
-export function isShareAbort(err: unknown): boolean {
-  return typeof err === 'object' && err !== null && (err as { name?: unknown }).name === 'AbortError'
-}
-
-/** Download the .ics via a temporary anchor in the DOM; revoke the object URL after a tick so the click lands. */
-export function downloadIcs(icsText: string, filename: string): void {
-  const url = URL.createObjectURL(new Blob([icsText], { type: 'text/calendar' }))
-  const a = document.createElement('a')
-  a.href = url
-  a.download = filename
-  document.body.appendChild(a)
-  a.click()
-  a.remove()
-  window.setTimeout(() => URL.revokeObjectURL(url), 1000)
-}
-
-/** Open the .ics in place (no download attribute) so iOS Safari hands it to Calendar instead of dead-ending in Files. */
-export function openIcs(icsText: string, _filename: string): void {
-  const url = URL.createObjectURL(new Blob([icsText], { type: 'text/calendar' }))
-  const a = document.createElement('a')
-  a.href = url
-  document.body.appendChild(a)
-  a.click()
-  a.remove()
-  // Calendar reads the blob after the hand-off; revoke late so it cannot race it.
-  window.setTimeout(() => URL.revokeObjectURL(url), 60000)
-}
-
-/** Open an external web page (the Google Calendar template) in a new tab / the platform's app hand-off. */
-export function openWebUrl(url: string): void {
-  const a = document.createElement('a')
-  a.href = url
-  a.target = '_blank'
-  a.rel = 'noopener'
-  document.body.appendChild(a)
-  a.click()
-  a.remove()
-}
-
 export type CalendarPlatform = 'android' | 'ios' | 'other'
 
 /** Platform routing for Add to calendar: Android gets the Google template link, iOS the ICS open flow, the rest a download. */
@@ -86,49 +46,19 @@ export function calendarPlatform(
   return 'other'
 }
 
-export interface ShareNavigatorLike {
-  canShare?: (data: ShareData) => boolean
-  share: (data: ShareData) => Promise<void>
-}
+export type CalendarTarget =
+  | { kind: 'google'; url: string }
+  | { kind: 'ics'; text: string; filename: string; download: boolean }
 
-/** Deliver the calendar invite by platform: Google template on Android, ICS open on iOS, share or download elsewhere. */
-export async function shareOrDownloadIcs(opts: {
-  text: string
-  filename: string
-  title: string
-  googleUrl?: string
-  platform?: CalendarPlatform
-  nav?: ShareNavigatorLike
-  download?: (text: string, filename: string) => void
-  open?: (text: string, filename: string) => void
-  openUrl?: (url: string) => void
-}): Promise<'shared' | 'cancelled' | 'opened' | 'downloaded'> {
-  const nav = opts.nav ?? (typeof navigator !== 'undefined' ? (navigator as ShareNavigatorLike) : undefined)
-  const download = opts.download ?? downloadIcs
-  const open = opts.open ?? openIcs
-  const openUrl = opts.openUrl ?? openWebUrl
-  const platform = opts.platform ?? calendarPlatform()
-  // Samsung Calendar and other non-Google Android calendars are reached via the ICS path if this template route is ever bypassed.
-  if (platform === 'android' && opts.googleUrl) {
-    openUrl(opts.googleUrl)
-    return 'opened'
+/** What the Add to calendar link points at, ready before the tap so no script runs between tap and hand-off. */
+export function calendarTarget(platform: CalendarPlatform, event: PotluckEvent, signups: Signup[]): CalendarTarget {
+  // Android goes to the Google Calendar template; Samsung Calendar and other non-Google calendars are not reachable this way.
+  if (platform === 'android') {
+    const url = googleCalendarUrl(event, signups)
+    if (url) return { kind: 'google', url }
   }
-  const file = new File([opts.text], opts.filename, { type: 'text/calendar' })
-  if (nav && typeof nav.canShare === 'function' && nav.canShare({ files: [file] })) {
-    try {
-      await nav.share({ files: [file], title: opts.title })
-      return 'shared'
-    } catch (err) {
-      if (isShareAbort(err)) return 'cancelled'
-    }
-  }
-  // iOS: opening the .ics (not downloading or file-sharing it) is what brings up the Calendar add sheet.
-  if (platform === 'ios') {
-    open(opts.text, opts.filename)
-    return 'opened'
-  }
-  download(opts.text, opts.filename)
-  return 'downloaded'
+  // iOS opens the .ics in place (no download flag) so Safari hands it to Calendar; desktop saves the file.
+  return { kind: 'ics', text: buildICS(event, signups), filename: icsFilename(event), download: platform !== 'ios' }
 }
 
 /** Google Calendar 'add event' template link for the event ('' when it has no date yet). */

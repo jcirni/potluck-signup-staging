@@ -5,7 +5,7 @@ import { cuisineColor, cuisinesOf, filterDishes, loadCatalog, suggestDishes, typ
 import { allergyRollup, computeGaps, findDuplicates, neededCourses, type CourseGap } from './lib/gaps.ts'
 import { displayEventName, showDeviceOnlyNotice, type EventLoad } from './lib/eventName.ts'
 import { isSpamSubmission } from './lib/honeypot.ts'
-import { buildICS, googleCalendarUrl, icsFilename, shareOrDownloadIcs } from './lib/ics.ts'
+import { buildICS, calendarPlatform, calendarTarget } from './lib/ics.ts'
 import { buildLinksMailto } from './lib/linksEmail.ts'
 import { installAction, isIosDevice, isStandalone, shouldShowInstallButton } from './lib/install.ts'
 import { SAMPLE_SIGNUPS } from './lib/seed.ts'
@@ -275,6 +275,21 @@ export default function App() {
   const hasSample = signups.some((s) => s.sample)
   // '' until the event has a date; that is what gates the calendar button.
   const icsText = useMemo(() => (event ? buildICS(event, signups) : ''), [event, signups])
+  // A plain link whose target is ready at render: the tap itself opens it, so iOS cannot swallow it behind a share sheet.
+  const calTarget = useMemo(
+    () => (event && icsText ? calendarTarget(calendarPlatform(), event, signups) : null),
+    [event, signups, icsText],
+  )
+  const [calHref, setCalHref] = useState('')
+  useEffect(() => {
+    if (calTarget?.kind !== 'ics') {
+      setCalHref('')
+      return
+    }
+    const url = URL.createObjectURL(new Blob([calTarget.text], { type: 'text/calendar' }))
+    setCalHref(url)
+    return () => URL.revokeObjectURL(url)
+  }, [calTarget])
   const showInstallButton = shouldShowInstallButton(standalone, justInstalled)
   const pickedDish = useMemo(() => dishes.find((d) => d.id === pickedDishId) ?? null, [dishes, pickedDishId])
   const filteredDishes = useMemo(
@@ -505,17 +520,6 @@ export default function App() {
     )
   }
 
-  /** One button, three deliveries: ics.ts routes by platform (Google template, ICS open, or ICS download). */
-  async function addToCalendar() {
-    if (!event || !icsText) return
-    await shareOrDownloadIcs({
-      text: icsText,
-      filename: icsFilename(event),
-      title: event.name,
-      googleUrl: googleCalendarUrl(event, signups),
-    })
-  }
-
   function openCreate() {
     setManageOpen(false)
     setCreateOpen(true)
@@ -609,11 +613,15 @@ export default function App() {
           <button type="button" className="link" onClick={copyShareLink}>
             Copy share link
           </button>
-          {icsText && (
-            <button type="button" className="link" onClick={() => void addToCalendar()}>
+          {calTarget?.kind === 'google' ? (
+            <a className="link" href={calTarget.url} target="_blank" rel="noopener noreferrer">
               Add to calendar
-            </button>
-          )}
+            </a>
+          ) : calTarget?.kind === 'ics' && calHref ? (
+            <a className="link" href={calHref} {...(calTarget.download ? { download: calTarget.filename } : {})}>
+              Add to calendar
+            </a>
+          ) : null}
         </div>
       </header>
       {showDeviceOnlyNotice(eventLoad, eventAdminToken(store.eventId) !== undefined) && (
