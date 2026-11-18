@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import CreateEvent from './components/CreateEvent.tsx'
 import Home from './components/Home.tsx'
 import { cuisineColor, cuisinesOf, filterDishes, loadCatalog, suggestDishes, type Dish } from './lib/catalog.ts'
-import { allergyRollup, computeGaps, findDuplicates, neededCourses, type CourseGap } from './lib/gaps.ts'
+import { allergyRollup, computeGaps, countPeople, findDuplicates, neededCourses, type CourseGap } from './lib/gaps.ts'
 import { displayEventName, showDeviceOnlyNotice, type EventLoad } from './lib/eventName.ts'
 import { isSpamSubmission } from './lib/honeypot.ts'
 import { buildICS, calendarPlatform, calendarTarget } from './lib/ics.ts'
@@ -269,6 +269,7 @@ export default function App() {
   const gaps = useMemo(() => neededCourses(signups, targets), [signups, targets])
   const allGaps = useMemo(() => computeGaps(signups, targets), [signups, targets])
   const duplicates = useMemo(() => findDuplicates(signups), [signups])
+  const peopleCount = useMemo(() => countPeople(signups), [signups])
   const allergies = useMemo(() => allergyRollup(signups), [signups])
   const hasSample = signups.some((s) => s.sample)
   // '' until the event has a date; that is what gates the calendar button.
@@ -639,8 +640,8 @@ export default function App() {
         )}
         <div className="stats" data-count={2}>
           <div className="stat">
-            <span className="stat-num">{signups.length}</span>
-            <span className="stat-label">{signups.length === 1 ? 'person' : 'people'} signed up</span>
+            <span className="stat-num">{peopleCount}</span>
+            <span className="stat-label">{peopleCount === 1 ? 'person' : 'people'} signed up</span>
           </div>
           <div className="stat">
             <span className="stat-num">{signups.length}</span>

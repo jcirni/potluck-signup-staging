@@ -18,6 +18,11 @@ export function computeGaps(signups: Signup[], targets: Targets): CourseGap[] {
   })
 }
 
+/** Distinct people behind the signups: one person can bring several dishes. Names match trimmed and case-insensitively. */
+export function countPeople(signups: Signup[]): number {
+  return new Set(signups.map((s) => s.name.trim().toLowerCase()).filter(Boolean)).size
+}
+
 /** Courses still short, most-needed first. */
 export function neededCourses(signups: Signup[], targets: Targets): CourseGap[] {
   return computeGaps(signups, targets)

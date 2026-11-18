@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { Dish } from './catalog.ts'
-import { allergyRollup, computeGaps, dietaryCoverage, findDuplicates, neededCourses, ovenPlan } from './gaps.ts'
+import { allergyRollup, computeGaps, countPeople, dietaryCoverage, findDuplicates, neededCourses, ovenPlan } from './gaps.ts'
 import { buildICS } from './ics.ts'
 import { buildShoppingList } from './shopping.ts'
 import { DEFAULT_TARGETS, EMPTY_DIETARY_NEEDS, type PotluckEvent, type Signup } from './types.ts'
@@ -72,6 +72,27 @@ describe('computeGaps', () => {
       signup({ id: String(n), dish: `Dish ${n}`, course: 'Desserts' }),
     )
     expect(neededCourses(signups, DEFAULT_TARGETS).some((g) => g.course === 'Desserts')).toBe(false)
+  })
+})
+
+describe('countPeople', () => {
+  it('counts one person with several dishes once', () => {
+    const signups = [
+      signup({ id: '1', name: 'Priscilla', dish: 'Candied sweet potato', course: 'Sides' }),
+      signup({ id: '2', name: 'Priscilla', dish: 'Buttermilk Cornbread', course: 'Sides' }),
+      signup({ id: '3', name: 'Joe C', dish: 'Whole roasted chicken' }),
+    ]
+    expect(countPeople(signups)).toBe(2)
+  })
+
+  it('matches names trimmed and case-insensitively, and skips blanks', () => {
+    const signups = [
+      signup({ id: '1', name: '  Amanda ' }),
+      signup({ id: '2', name: 'amanda' }),
+      signup({ id: '3', name: '' }),
+    ]
+    expect(countPeople(signups)).toBe(1)
+    expect(countPeople([])).toBe(0)
   })
 })
 
