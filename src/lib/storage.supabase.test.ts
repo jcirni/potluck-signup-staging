@@ -321,6 +321,29 @@ describe('SupabaseStore guest edit token across reloads', () => {
     expect((await store.getEvent('friendsgiving'))?.accent).toBe('slate')
   })
 
+  it('round-trips course targets and updates them only with the admin hash', async () => {
+    const store = new SupabaseStore()
+    const event: PotluckEvent = {
+      id: 'friendsgiving',
+      name: 'Friendsgiving',
+      date: '2026-11-26',
+      headcount: 12,
+      targets: { ...DEFAULT_TARGETS },
+      dietaryNeeds: { ...EMPTY_DIETARY_NEEDS },
+      accent: 'brass',
+      createdAt: '2026-11-14T00:00:00.000Z',
+    }
+    await store.createEvent(event, 'admin-hash')
+    expect((await store.getEvent('friendsgiving'))?.targets).toEqual(DEFAULT_TARGETS)
+
+    const next = { ...DEFAULT_TARGETS, Appetizers: 5, Sides: 8 }
+    await expect(store.updateEvent('friendsgiving', { targets: next }, 'wrong-hash')).rejects.toThrow(
+      'Not authorized for this event.',
+    )
+    await store.updateEvent('friendsgiving', { targets: next }, 'admin-hash')
+    expect((await store.getEvent('friendsgiving'))?.targets).toEqual(next)
+  })
+
   it('round-trips event location and details and updates them with the admin hash', async () => {
     const store = new SupabaseStore()
     const event: PotluckEvent = {

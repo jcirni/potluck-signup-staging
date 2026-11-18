@@ -22,7 +22,6 @@ import {
   eventAdminToken,
   forgetToken,
   getStoredSetting,
-  mergeTargets,
   ownsSignup,
   resolveMode,
   setStoredSetting,
@@ -54,17 +53,8 @@ interface BeforeInstallPromptEvent extends Event {
 const ACCENT_LABELS: Record<Accent, string> = { brass: 'Coral', burgundy: 'Plum', forest: 'Teal', slate: 'Charcoal' }
 
 const MODE_KEY = 'potluck:store-mode'
-const TARGETS_KEY = 'potluck:targets:v1'
 const EVENT_KEY = 'potluck:event-name'
 const ACCENT_KEY = 'potluck:accent'
-
-function loadTargets(): Targets {
-  try {
-    return mergeTargets(JSON.parse(localStorage.getItem(TARGETS_KEY) ?? '{}'))
-  } catch {
-    return { ...DEFAULT_TARGETS }
-  }
-}
 
 function emptyForm(): { name: string; dish: string; course: Course; needOven: boolean; allergies: string; servings: string } {
   return { name: '', dish: '', course: 'Mains', needOven: false, allergies: '', servings: '' }
@@ -104,7 +94,7 @@ export default function App() {
   const [loaded, setLoaded] = useState(false)
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
-  const [targets, setTargets] = useState<Targets>(loadTargets)
+  const [targets, setTargets] = useState<Targets>({ ...DEFAULT_TARGETS })
   const [eventName, setEventName] = useState(() => localStorage.getItem(EVENT_KEY) ?? 'Friendsgiving')
   const [form, setForm] = useState(emptyForm)
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -139,6 +129,9 @@ export default function App() {
   const [detailsForm, setDetailsForm] = useState({ location: '', time: '', details: '' })
   const [detailsSaved, setDetailsSaved] = useState(false)
   const [detailsError, setDetailsError] = useState('')
+  const [targetsForm, setTargetsForm] = useState<Targets>({ ...DEFAULT_TARGETS })
+  const [targetsSaved, setTargetsSaved] = useState(false)
+  const [targetsError, setTargetsError] = useState('')
   const [formInView, setFormInView] = useState(false)
   const nameRef = useRef<HTMLInputElement>(null)
   const formSectionRef = useRef<HTMLElement>(null)
@@ -240,6 +233,10 @@ export default function App() {
         if (ev) {
           setAccent(ev.accent)
           setEventName(ev.name)
+          setTargets(ev.targets)
+          setTargetsForm(ev.targets)
+          setTargetsSaved(false)
+          setTargetsError('')
           setDetailsForm({ location: ev.location ?? '', time: ev.startTime ?? '', details: ev.details ?? '' })
           setDetailsSaved(false)
           setDetailsError('')
@@ -344,14 +341,44 @@ export default function App() {
     }))
   }
 
-  function saveTargets(next: Targets) {
-    setTargets(next)
-    localStorage.setItem(TARGETS_KEY, JSON.stringify(next))
+  /** Save course targets through the same host path as the details, so every guest sees them. */
+  async function saveCourseTargets() {
+    setTargetsError('')
+    try {
+      if (mode === 'supabase') {
+        const token = eventAdminToken(store.eventId)
+        if (token) await store.updateEvent(store.eventId, { targets: targetsForm }, await sha256Hex(token))
+      } else if (event) {
+        await store.updateEvent(store.eventId, { targets: targetsForm })
+      }
+      setTargets(targetsForm)
+      setEvent((prev) => (prev ? { ...prev, targets: targetsForm } : prev))
+      setTargetsSaved(true)
+    } catch (err) {
+      setTargetsError(err instanceof Error ? err.message : 'Could not save the course targets.')
+    }
   }
 
   function saveEventName(name: string) {
     setEventName(name)
     localStorage.setItem(EVENT_KEY, name)
+  }
+
+  /** Leaving the name field saves it to the event itself when this browser is the host. */
+  async function persistEventName() {
+    const name = eventName.trim().slice(0, 120)
+    if (!name || !event || name === event.name || !canEditAccent) return
+    try {
+      if (mode === 'supabase') {
+        const token = eventAdminToken(store.eventId)
+        if (token) await store.updateEvent(store.eventId, { name }, await sha256Hex(token))
+      } else {
+        await store.updateEvent(store.eventId, { name })
+      }
+      setEvent((prev) => (prev ? { ...prev, name } : prev))
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not save the event name.')
+    }
   }
 
   // Accent editing is the host's: on Supabase that means holding the event's admin token.
@@ -1108,7 +1135,12 @@ export default function App() {
             <section className="drawer-section">
               <label className="event-label">
                 Event name
-                <input value={eventName} onChange={(e) => saveEventName(e.target.value)} aria-label="Event name" />
+                <input
+                  value={eventName}
+                  onChange={(e) => saveEventName(e.target.value)}
+                  onBlur={() => void persistEventName()}
+                  aria-label="Event name"
+                />
               </label>
             </section>
 
@@ -1187,24 +1219,39 @@ export default function App() {
               </section>
             )}
 
-            <section className="drawer-section">
-              <h3>Course targets</h3>
-              <div className="targets">
-                {COURSES.map((course) => (
-                  <label key={course}>
-                    {course}
-                    <input
-                      type="number"
-                      min={0}
-                      value={targets[course]}
-                      onChange={(e) =>
-                        saveTargets({ ...targets, [course]: Math.max(0, Number(e.target.value) || 0) })
-                      }
-                    />
-                  </label>
-                ))}
-              </div>
-            </section>
+            {canEditAccent && (
+              <section className="drawer-section">
+                <h3>Course targets</h3>
+                <p className="hint">How many of each course the event needs. Guests see these numbers in What's needed.</p>
+                <div className="targets">
+                  {COURSES.map((course) => (
+                    <label key={course}>
+                      {course}
+                      <input
+                        type="number"
+                        min={0}
+                        value={targetsForm[course]}
+                        onChange={(e) => {
+                          setTargetsForm({ ...targetsForm, [course]: Math.max(0, Number(e.target.value) || 0) })
+                          setTargetsSaved(false)
+                        }}
+                      />
+                    </label>
+                  ))}
+                </div>
+                {targetsError && (
+                  <p className="notice error" role="alert">
+                    {targetsError}
+                  </p>
+                )}
+                <div className="row">
+                  <button type="button" className="primary" onClick={() => void saveCourseTargets()}>
+                    Save targets
+                  </button>
+                  {targetsSaved && <span className="hint">Saved.</span>}
+                </div>
+              </section>
+            )}
 
             {devStoresEnabled() && (
             <section className="drawer-section">
