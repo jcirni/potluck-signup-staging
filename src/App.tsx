@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import CreateEvent from './components/CreateEvent.tsx'
 import Home from './components/Home.tsx'
-import { cuisineColor, cuisinesOf, filterDishes, loadCatalog, suggestDishes, type Dish } from './lib/catalog.ts'
+import { cuisineColor, cuisinesOf, filterDishes, formatIngredient, loadCatalog, suggestDishes, type Dish } from './lib/catalog.ts'
 import { allergyRollup, computeGaps, countPeople, findDuplicates, neededCourses, type CourseGap } from './lib/gaps.ts'
 import { displayEventName, showDeviceOnlyNotice, type EventLoad } from './lib/eventName.ts'
 import { isSpamSubmission } from './lib/honeypot.ts'
@@ -119,6 +119,7 @@ export default function App() {
   const [dishCourse, setDishCourse] = useState<Course | 'All'>('All')
   const [dishCuisine, setDishCuisine] = useState('All')
   const [pickedDishId, setPickedDishId] = useState<string | null>(null)
+  const [detailDishId, setDetailDishId] = useState<string | null>(null)
   const [dishListOpen, setDishListOpen] = useState(false)
   const [recipePrompt, setRecipePrompt] = useState<{ dish: string; name: string; servings: number } | null>(null)
   const [recipeOpen, setRecipeOpen] = useState(false)
@@ -302,6 +303,20 @@ export default function App() {
   const ownDishName = dishFilter.trim()
   const showOwnDish = ownDishName !== '' && !filteredDishes.some((d) => d.name.toLowerCase() === ownDishName.toLowerCase())
   const dishSuggestions = useMemo(() => suggestDishes(dishes, form.dish), [dishes, form.dish])
+  const detailDish = detailDishId ? (dishes.find((d) => d.id === detailDishId) ?? null) : null
+  const detailLogistics = detailDish
+    ? [
+        detailDish.logistics.needsOven
+          ? `Needs the oven${detailDish.logistics.ovenTempF ? ` at ${detailDish.logistics.ovenTempF}°F` : ''}`
+          : '',
+        detailDish.logistics.crockpot ? 'Crockpot' : '',
+        detailDish.logistics.makeAhead ? 'Make ahead' : '',
+        detailDish.logistics.travelsWell ? 'Travels well' : '',
+        detailDish.logistics.utensil ? `Utensil: ${detailDish.logistics.utensil}` : '',
+      ]
+        .filter(Boolean)
+        .join(' · ')
+    : ''
 
   /** Sticky mobile button target: bring the signup form into view. */
   function scrollToForm() {
@@ -340,6 +355,13 @@ export default function App() {
       needOven: d.logistics.needsOven,
       servings: d.servings > 0 ? String(d.servings) : f.servings,
     }))
+  }
+
+  /** Pick from the detail view, then put the guest at the name field like a course claim. */
+  function bringDish(d: Dish) {
+    pickDish(d)
+    formSectionRef.current?.scrollIntoView({ behavior: 'smooth' })
+    window.setTimeout(() => nameRef.current?.focus({ preventScroll: true }), 400)
   }
 
   /** Save course targets through the same host path as the details, so every guest sees them. */
@@ -874,12 +896,12 @@ export default function App() {
                       <button
                         type="button"
                         className={`picker-row${d.id === pickedDishId ? ' picked' : ''}`}
-                        onClick={() => pickDish(d)}
+                        onClick={() => setDetailDishId(detailDishId === d.id ? null : d.id)}
+                        aria-expanded={detailDishId === d.id}
                       >
                         <span className="picker-name">{d.name}</span>
                         <span className="chip" style={{ background: cuisineColor(d.cuisine) }}>{d.cuisine}</span>
-                        <span className="badge">{d.macros.calories} kcal</span>
-                        <span className="badge">{d.macros.proteinG}g protein</span>
+                        <span className="row-hint">Details</span>
                       </button>
                     </li>
                   ))}
@@ -887,6 +909,82 @@ export default function App() {
               )}
               {filteredDishes.length > 60 && (
                 <p className="hint">Showing 60 of {filteredDishes.length}. Keep typing to narrow it down.</p>
+              )}
+              {detailDish && (
+                <div className="dish-detail">
+                  <div className="detail-head">
+                    <h3>{detailDish.name}</h3>
+                    <button type="button" className="link" onClick={() => setDetailDishId(null)}>
+                      Close
+                    </button>
+                  </div>
+                  <p className="detail-meta">
+                    {[
+                      detailDish.course,
+                      detailDish.cuisine,
+                      `Serves ${detailDish.servings}`,
+                      detailDish.prepMin > 0 ? `Prep ${detailDish.prepMin} min` : '',
+                      detailDish.cookMin > 0 ? `Cook ${detailDish.cookMin} min` : '',
+                      detailDish.estCostUsd > 0 ? `About $${detailDish.estCostUsd}` : '',
+                    ]
+                      .filter(Boolean)
+                      .join(' · ')}
+                  </p>
+                  {detailDish.origin && detailDish.origin !== 'original' && (
+                    <p className="hint">Recipe from {detailDish.origin}</p>
+                  )}
+                  {detailDish.description && <p className="detail-desc">{detailDish.description}</p>}
+                  <h4>Per serving</h4>
+                  <dl className="macro-grid">
+                    <div>
+                      <dt>Calories</dt>
+                      <dd>{detailDish.macros.calories}</dd>
+                    </div>
+                    <div>
+                      <dt>Protein</dt>
+                      <dd>{detailDish.macros.proteinG}g</dd>
+                    </div>
+                    <div>
+                      <dt>Carbs</dt>
+                      <dd>{detailDish.macros.carbsG}g</dd>
+                    </div>
+                    <div>
+                      <dt>Fiber</dt>
+                      <dd>{detailDish.macros.fiberG}g</dd>
+                    </div>
+                    <div>
+                      <dt>Fat</dt>
+                      <dd>{detailDish.macros.fatG}g</dd>
+                    </div>
+                  </dl>
+                  {detailDish.tags.contains.length > 0 && (
+                    <p className="hint">Contains: {detailDish.tags.contains.join(', ')}</p>
+                  )}
+                  {detailDish.ingredients.length > 0 && (
+                    <>
+                      <h4>Ingredients</h4>
+                      <ul className="detail-list">
+                        {detailDish.ingredients.map((ing, i) => (
+                          <li key={i}>{formatIngredient(ing)}</li>
+                        ))}
+                      </ul>
+                    </>
+                  )}
+                  {detailDish.steps.length > 0 && (
+                    <>
+                      <h4>Recipe</h4>
+                      <ol className="detail-list">
+                        {detailDish.steps.map((s, i) => (
+                          <li key={i}>{s}</li>
+                        ))}
+                      </ol>
+                    </>
+                  )}
+                  {detailLogistics && <p className="hint">{detailLogistics}</p>}
+                  <button type="button" className="primary" onClick={() => bringDish(detailDish)}>
+                    Bring this dish
+                  </button>
+                </div>
               )}
             </div>
           )}
@@ -936,7 +1034,6 @@ export default function App() {
                         >
                           <span className="picker-name">{d.name}</span>
                           <span className="chip" style={{ background: cuisineColor(d.cuisine) }}>{d.cuisine}</span>
-                          <span className="badge">{d.macros.calories} kcal</span>
                         </button>
                       </li>
                     ))}

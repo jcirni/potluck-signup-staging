@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
-import { CUISINE_PALETTE, cuisineColor, cuisinesOf, filterDishes, formatQuantity, scaleIngredients, suggestDishes, validateCatalog, type Dish } from './catalog.ts'
+import { CUISINE_PALETTE, cuisineColor, cuisinesOf, filterDishes, formatIngredient, formatQuantity, scaleIngredients, suggestDishes, validateCatalog, type Dish } from './catalog.ts'
 
 function dish(partial: Partial<Dish> & { id: string }): Dish {
   return {
@@ -81,6 +81,14 @@ describe('validateCatalog rejects bad data', () => {
     expect(withOrigin.dishes[0].origin).toBe('Joe')
     const badOrigin = validateCatalog({ dishes: [{ ...dish({ id: 'x' }), origin: 42 }], supplies: [] })
     expect(badOrigin.dishes[0].origin).toBeUndefined()
+  })
+})
+
+describe('formatIngredient', () => {
+  it('joins quantity, unit, and item, skipping an empty unit', () => {
+    expect(formatIngredient({ item: 'Berbere spice', quantity: 0.25, unit: 'cup' })).toBe('1/4 cup Berbere spice')
+    expect(formatIngredient({ item: 'Eggs, hard-boiled', quantity: 6, unit: '' })).toBe('6 Eggs, hard-boiled')
+    expect(formatIngredient({ item: 'Chicken thighs', quantity: 3, unit: 'lb' })).toBe('3 lb Chicken thighs')
   })
 })
 

@@ -143,6 +143,20 @@ summary { cursor: pointer; color: var(--ink-dim); }
 .picker-name { flex: 1; min-width: 0; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .chip { flex: 0 1 auto; min-width: 0; max-width: 38%; overflow: hidden; text-overflow: ellipsis; border-radius: 999px; padding: 1px 8px; font-size: 0.75em; font-weight: 700; color: #1c160d; white-space: nowrap; }
 .badge { flex-shrink: 0; border: 1px solid var(--line-soft); border-radius: 999px; padding: 0 7px; font-size: 0.75em; color: var(--ink-dim); white-space: nowrap; }
+.row-hint { flex-shrink: 0; font-size: 0.8em; font-weight: 600; color: var(--accent); }
+.dish-detail { margin-top: 10px; border: 1px solid var(--line); border-radius: 14px; background: var(--panel); padding: 12px 14px; }
+.detail-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+.detail-head h3 { margin: 0; font-size: 1.05em; }
+.dish-detail h4 { margin: 12px 0 4px; font-size: 0.85em; text-transform: uppercase; letter-spacing: 0.05em; color: var(--ink-dim); }
+.detail-meta { margin: 2px 0 6px; color: var(--ink-dim); font-size: 0.9em; }
+.detail-desc { margin: 0 0 4px; }
+.macro-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; margin: 0; }
+.macro-grid div { border: 1px solid var(--line-soft); border-radius: 10px; padding: 5px 4px; text-align: center; }
+.macro-grid dt { font-size: 0.7em; text-transform: uppercase; letter-spacing: 0.04em; color: var(--ink-dim); }
+.macro-grid dd { margin: 0; font-weight: 700; }
+.detail-list { margin: 0; padding-left: 20px; }
+.detail-list li { margin: 2px 0; }
+.dish-detail .primary { margin-top: 12px; }
 .picker-filters { display: flex; gap: 8px; margin-bottom: 8px; }
 .picker-filters label { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; font-size: 0.9em; color: var(--ink-dim); }
 .picker-filters select { width: 100%; min-width: 0; }

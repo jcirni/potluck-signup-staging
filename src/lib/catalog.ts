@@ -210,6 +210,11 @@ export function scaleIngredients(dish: Dish, scale: number): DishIngredient[] {
   return dish.ingredients.map((ing) => ({ ...ing, quantity: Math.round(ing.quantity * scale * 100) / 100 }))
 }
 
+/** One ingredient line for a recipe view: "1/4 cup Berbere spice". */
+export function formatIngredient(ing: DishIngredient): string {
+  return [formatQuantity(ing.quantity), ing.unit, ing.item].filter(Boolean).join(' ')
+}
+
 /** Format a quantity for a shopping list: 0.5 -> "1/2", 1.25 -> "1 1/4", otherwise trimmed decimal. */
 export function formatQuantity(q: number): string {
   const whole = Math.floor(q)
